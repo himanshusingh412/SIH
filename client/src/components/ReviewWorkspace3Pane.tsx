@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import {
   FileText,
-  Linkedin,
-  Twitter,
   ShieldAlert,
   Presentation,
   BarChart2,
@@ -20,6 +18,18 @@ import {
   Zap,
 } from 'lucide-react';
 import type { ContentSpineData, GeneratedOutput, OutputType, ValidationReportData } from '../types';
+
+const LinkedinIcon = ({ size = 16 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.46 10.9v8.37H9.25V10.9H6.46M7.86 6.75a1.45 1.45 0 1 0 0 2.9 1.45 1.45 0 0 0 0-2.9z"/>
+  </svg>
+);
+
+const TwitterIcon = ({ size = 16 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+  </svg>
+);
 
 interface ReviewWorkspace3PaneProps {
   projectTitle?: string;
@@ -72,8 +82,8 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
 
   const formats: Array<{ type: OutputType; label: string; icon: any; profile: string }> = [
     { type: 'EXECUTIVE_SUMMARY', label: 'Executive Summary', icon: FileText, profile: 'EXECUTIVE' },
-    { type: 'LINKEDIN_POST', label: 'LinkedIn Post', icon: Linkedin, profile: 'EXECUTIVE' },
-    { type: 'X_THREAD', label: 'X Thread', icon: Twitter, profile: 'EXECUTIVE' },
+    { type: 'LINKEDIN_POST', label: 'LinkedIn Post', icon: LinkedinIcon, profile: 'EXECUTIVE' },
+    { type: 'X_THREAD', label: 'X Thread', icon: TwitterIcon, profile: 'EXECUTIVE' },
     { type: 'ADVISORY', label: 'Advisory', icon: ShieldAlert, profile: 'EXECUTIVE' },
     { type: 'PRESENTATION', label: 'Presentation', icon: Presentation, profile: 'EXECUTIVE' },
     { type: 'INFOGRAPHIC', label: 'Infographic', icon: BarChart2, profile: 'EXECUTIVE' },
