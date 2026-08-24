@@ -1,7 +1,5 @@
 import { PrismaClient } from '@prisma/client';
 import dotenv from 'dotenv';
-import { execSync } from 'child_process';
-import path from 'path';
 
 dotenv.config();
 
@@ -23,19 +21,6 @@ export const config = {
   elevenlabsVoiceId: process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM', // Rachel
   elevenlabsModel: process.env.ELEVENLABS_MODEL || 'eleven_multilingual_v2',
 };
-
-// Ensure SQLite DB schema exists on startup
-if (dbUrl.startsWith('file:')) {
-  try {
-    const schemaPath = path.join(__dirname, '..', '..', 'prisma', 'schema.prisma');
-    execSync(`npx prisma db push --schema="${schemaPath}" --accept-data-loss --skip-generate`, {
-      env: { ...process.env, DATABASE_URL: dbUrl },
-      stdio: 'ignore',
-    });
-  } catch (e) {
-    // Ignore schema sync warnings
-  }
-}
 
 export const prisma = new PrismaClient({
   datasources: {
