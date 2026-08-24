@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "vercel-build": "prisma generate --schema=server/prisma/schema.prisma && DATABASE_URL=\"file:/tmp/dev.db\" npx prisma db push --schema=server/prisma/schema.prisma --accept-data-loss && npm --prefix server run build && npm --prefix client run build",
-    "build": "npm --prefix server run build && npm --prefix client run build",
+    "vercel-build": "npm --prefix client install && prisma generate --schema=server/prisma/schema.prisma && DATABASE_URL=\"file:/tmp/dev.db\" npx prisma db push --schema=server/prisma/schema.prisma --accept-data-loss && npm --prefix server run build && npm --prefix client run build",
+    "build": "npm --prefix client install && npm --prefix server run build && npm --prefix client run build",
     "start": "npm --prefix server start",
     "test": "npm --prefix server test"
   },
@@ -20,6 +20,7 @@
     "pdf-parse": "^1.1.1",
     "pdfkit": "^0.16.0",
     "pptxgenjs": "^3.12.0",
+    "react-markdown": "^10.1.0",
     "xml2js": "^0.6.2",
     "zod": "^3.23.8"
   },
