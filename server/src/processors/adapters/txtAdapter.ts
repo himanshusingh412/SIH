@@ -1,0 +1,30 @@
+import { InputCategory } from '../../types';
+import { ExtractedDocumentData, InputAdapter } from './types';
+
+export class TxtAdapter implements InputAdapter {
+  name = 'TXT / Text File Extractor Adapter';
+
+  canHandle(category: InputCategory, filename: string): boolean {
+    const ext = filename.split('.').pop()?.toLowerCase();
+    return (
+      category === 'PROMPT' ||
+      category === 'REPORT' ||
+      category === 'THREAT_INTEL' ||
+      category === 'POLICY' ||
+      category === 'ARTICLE' ||
+      category === 'RESEARCH_PAPER' ||
+      ['txt', 'md', 'json', 'csv'].includes(ext || '')
+    );
+  }
+
+  async extract(buffer: Buffer, _filename: string): Promise<ExtractedDocumentData> {
+    const text = buffer.toString('utf-8');
+    const estimatedPages = Math.max(1, Math.ceil(text.length / 2500));
+    return {
+      text,
+      pageCount: estimatedPages,
+      fileSize: buffer.length,
+      metadata: { encoding: 'utf-8' },
+    };
+  }
+}

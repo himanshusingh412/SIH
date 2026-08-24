@@ -1,0 +1,18 @@
+# Environment Variables Security
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+dist/
+build/
+
+# Database & SQLite files
+server/prisma/*.db
+server/prisma/*.db-journal
+dev.db
+
+# Logs & Temporary Files
+*.log
+.DS_Store

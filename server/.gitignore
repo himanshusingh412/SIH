@@ -1,0 +1,16 @@
+# Environment Variables Security
+.env
+.env.*
+!.env.example
+
+# Dependencies & Build Output
+node_modules/
+dist/
+
+# SQLite Database
+prisma/*.db
+prisma/*.db-journal
+dev.db
+
+# Logs
+*.log

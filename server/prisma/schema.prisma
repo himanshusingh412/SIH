@@ -1,0 +1,188 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String    @id @default(uuid())
+  email     String    @unique
+  name      String?
+  role      String    @default("OPERATOR")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  projects  Project[]
+}
+
+model Project {
+  id               String            @id @default(uuid())
+  userId           String?
+  user             User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  title            String
+  description      String?
+  status           String            @default("DRAFT") // DRAFT, INGESTED, GENERATED, VALIDATED
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  sourceDocuments  SourceDocument[]
+  contentSpines    ContentSpine[]
+  outputs          Output[]
+  validationResults ValidationResult[]
+  generationJobs   GenerationJob[]
+  audienceProfiles AudienceProfile[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model SourceDocument {
+  id               String            @id @default(uuid())
+  projectId        String
+  project          Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  filename         String
+  fileType         String
+  inputCategory    String            // PDF, REPORT, ARTICLE, RESEARCH_PAPER, THREAT_INTEL, POLICY, IMAGE, VIDEO, PROMPT
+  rawText          String
+  fileSize         Int?              @default(0)
+  pageCount        Int?              @default(1)
+  createdAt        DateTime          @default(now())
+  sourceReferences SourceReference[]
+
+  @@index([projectId])
+}
+
+model ContentSpine {
+  id            String    @id @default(uuid())
+  projectId     String
+  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  version       Int       @default(1)
+  summary       String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  facts         Fact[]
+  entities      Entity[]
+
+  @@index([projectId])
+}
+
+model Fact {
+  id             String          @id @default(uuid())
+  contentSpineId String
+  contentSpine   ContentSpine    @relation(fields: [contentSpineId], references: [id], onDelete: Cascade)
+  factKey        String
+  factValue      String
+  category       String          // DATE, NUMBER, PERSON, ORGANIZATION, LOCATION, CLAIM, RISK, RECOMMENDATION
+  isLocked       Boolean         @default(true)
+  confidence     Float           @default(1.0)
+  createdAt      DateTime        @default(now())
+  references     SourceReference[]
+
+  @@index([contentSpineId])
+  @@index([category])
+}
+
+model Entity {
+  id             String          @id @default(uuid())
+  contentSpineId String
+  contentSpine   ContentSpine    @relation(fields: [contentSpineId], references: [id], onDelete: Cascade)
+  name           String
+  type           String          // PERSON, ORGANIZATION, LOCATION, TECHNOLOGY, EVENT
+  confidence     Float           @default(1.0)
+  createdAt      DateTime        @default(now())
+  references     SourceReference[]
+
+  @@index([contentSpineId])
+  @@index([type])
+}
+
+model SourceReference {
+  id               String          @id @default(uuid())
+  sourceDocumentId String
+  sourceDocument   SourceDocument  @relation(fields: [sourceDocumentId], references: [id], onDelete: Cascade)
+  factId           String?
+  fact             Fact?           @relation(fields: [factId], references: [id], onDelete: SetNull)
+  entityId         String?
+  entity           Entity?         @relation(fields: [entityId], references: [id], onDelete: SetNull)
+  snippetText      String
+  pageNumber       Int?            @default(1)
+  startCharIndex   Int?            @default(0)
+  endCharIndex     Int?            @default(0)
+
+  @@index([sourceDocumentId])
+  @@index([factId])
+  @@index([entityId])
+}
+
+model Output {
+  id                String          @id @default(uuid())
+  projectId         String
+  project           Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  outputType        String          // EXECUTIVE_SUMMARY, LINKEDIN_POST, X_THREAD, ADVISORY, PRESENTATION, INFOGRAPHIC, VIDEO_PACKAGE
+  audienceProfileId String?
+  audienceProfile   AudienceProfile? @relation(fields: [audienceProfileId], references: [id], onDelete: SetNull)
+  currentVersionId  String?
+  isConsistent      Boolean         @default(true)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  versions          OutputVersion[]
+
+  @@index([projectId])
+  @@index([outputType])
+}
+
+model OutputVersion {
+  id            String   @id @default(uuid())
+  outputId      String
+  output        Output   @relation(fields: [outputId], references: [id], onDelete: Cascade)
+  version       Int      @default(1)
+  title         String
+  content       String   // Stringified structured JSON or markdown text
+  createdReason String   @default("INITIAL_GENERATION") // INITIAL_GENERATION, MANUAL_EDIT, AUTO_CORRECTION, RE_GENERATION
+  createdAt     DateTime @default(now())
+
+  @@index([outputId])
+}
+
+model ValidationResult {
+  id               String   @id @default(uuid())
+  projectId        String
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  consistencyScore Float    @default(100.0)
+  passed           Boolean  @default(true)
+  issuesFound      String   // JSON stringified envelope containing _summary and issues list
+  autoCorrected    Boolean  @default(false)
+  createdAt        DateTime @default(now())
+
+  @@index([projectId])
+}
+
+model GenerationJob {
+  id           String    @id @default(uuid())
+  projectId    String
+  project      Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  status       String    @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
+  outputTypes  String    // JSON stringified array of target output types
+  errorMessage String?
+  createdAt    DateTime  @default(now())
+  completedAt  DateTime?
+
+  @@index([projectId])
+  @@index([status])
+}
+
+model AudienceProfile {
+  id          String    @id @default(uuid())
+  projectId   String?
+  project     Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  name        String    // EXECUTIVE, TECHNICAL, GOVERNMENT, PUBLIC
+  tone        String    @default("FORMAL")
+  detailLevel String    @default("HIGH")
+  targetGoal  String?
+  isDefault   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  outputs     Output[]
+
+  @@index([projectId])
+}
