@@ -4,7 +4,6 @@ import { ImageAdapter } from './adapters/imageAdapter';
 import { PdfAdapter } from './adapters/pdfAdapter';
 import { InputAdapter } from './adapters/types';
 import { TxtAdapter } from './adapters/txtAdapter';
-import { VideoAdapter } from './adapters/videoAdapter';
 
 export interface NormalizedChunk {
   chunkIndex: number;
@@ -20,7 +19,6 @@ export class DocumentProcessor {
     new PdfAdapter(),
     new ImageAdapter(),
     new DocxAdapter(),
-    new VideoAdapter(),
     new TxtAdapter(), // fallback for text/prompts
   ];
 

@@ -3,7 +3,6 @@ import { RootLayout } from './layouts/RootLayout';
 import { SidebarNav } from './components/SidebarNav';
 import { Header } from './components/Header';
 import { DashboardPage } from './pages/DashboardPage';
-import { CreativeStudioPage } from './pages/CreativeStudioPage';
 import { AgentsPage } from './pages/AgentsPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { SettingsPage } from './pages/SettingsPage';
@@ -242,13 +241,6 @@ export function App() {
               />
             )}
 
-            {/* Creative Studio Route */}
-            {route === 'creative-studio' && (
-              <CreativeStudioPage
-                projectId={projectData?.id || 'demo-project'}
-                spine={spineData}
-              />
-            )}
 
             {/* AI Agents Route */}
             {route === 'agents' && (

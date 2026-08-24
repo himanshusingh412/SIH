@@ -6,8 +6,6 @@ import { ensureDbSchema } from './config/dbInit';
 import { errorHandler, requestLogger } from './middleware/errorHandler';
 import { rateLimiter, securityHeaders } from './middleware/security';
 import agentRoutes from './routes/agentRoutes';
-import audioRoutes from './routes/audioRoutes';
-import mediaRoutes from './routes/mediaRoutes';
 import projectRoutes from './routes/projectRoutes';
 import resumeRoutes from './routes/resumeRoutes';
 
@@ -50,7 +48,6 @@ const healthHandler = async (_req: Request, res: Response) => {
       environment: process.env.NODE_ENV || 'production',
       providers: {
         aiProvider: config.aiProvider,
-        audioProvider: config.aiAudioProvider,
         demoMode: config.demoMode,
       },
       timestamp: new Date().toISOString(),
@@ -90,21 +87,15 @@ app.use('/', projectRoutes);
 app.use('/api', resumeRoutes);
 app.use('/', resumeRoutes);
 
-app.use('/api/audio', audioRoutes);
-app.use('/audio', audioRoutes);
-
 app.use('/api/agents', agentRoutes);
 app.use('/agents', agentRoutes);
-
-app.use('/api/media', mediaRoutes);
-app.use('/media', mediaRoutes);
 
 // Global Error Handler
 app.use(errorHandler);
 
 if (!process.env.VERCEL) {
   app.listen(config.port, () => {
-    console.log(`🚀 ContentSpine AI Multimodal Engine running on http://localhost:${config.port}`);
+    console.log(`🚀 ContentSpine AI Engine running on http://localhost:${config.port}`);
   });
 }
 

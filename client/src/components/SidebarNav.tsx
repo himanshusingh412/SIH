@@ -6,7 +6,6 @@ import {
   Settings,
   Layers,
   Sparkles,
-  Mic,
   Bot,
   BarChart3,
   History,
@@ -30,7 +29,6 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
     { id: 'projects', label: 'Projects', icon: FolderKanban },
     { id: 'spine', label: 'Content Spine', icon: Database },
     { id: 'workspace', label: 'Review Workspace', icon: Layers },
-    { id: 'creative-studio', label: 'Creative Studio', icon: Mic, badge: 'Multimodal' },
     { id: 'resume-studio', label: 'Resume Studio', icon: FileText, badge: 'ATS' },
     { id: 'agents', label: 'AI Agents', icon: Bot, badge: 'Knowledge' },
     { id: 'history', label: 'History', icon: History },
@@ -84,7 +82,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
               ContentSpine AI
             </div>
             <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)', fontWeight: 600 }}>
-              Multimodal Content Engine
+              AI Content Transformation Engine
             </div>
           </div>
         </div>

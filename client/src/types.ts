@@ -29,7 +29,6 @@ export type AppRoute =
   | 'dashboard'
   | 'projects'
   | 'spine'
-  | 'creative-studio'
   | 'agents'
   | 'history'
   | 'analytics'
@@ -38,15 +37,6 @@ export type AppRoute =
   | 'processing'
   | 'configuration'
   | 'workspace';
-
-export type CreativeStudioTab =
-  | 'voice-studio'
-  | 'speech-to-text'
-  | 'music-studio'
-  | 'sfx-studio'
-  | 'dubbing'
-  | 'video-studio'
-  | 'format-converter';
 
 export interface FactItem {
   id: string;

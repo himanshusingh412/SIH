@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart3, Database, ShieldCheck, FileText, Mic, Bot, Zap, RefreshCw } from 'lucide-react';
+import { BarChart3, Database, ShieldCheck, FileText, Bot, Zap, RefreshCw } from 'lucide-react';
 import type { AnalyticsData } from '../types';
 
 export const AnalyticsPage: React.FC = () => {
@@ -30,7 +30,6 @@ export const AnalyticsPage: React.FC = () => {
     { label: 'Content Spines', value: analytics?.totalContentSpines ?? 1, icon: Database, color: 'var(--accent-sky)' },
     { label: 'Locked Facts Protected', value: analytics?.totalFactsLocked ?? 11, icon: ShieldCheck, color: '#10b981' },
     { label: 'Deliverables Generated', value: analytics?.totalOutputsGenerated ?? 7, icon: Zap, color: 'var(--accent-purple)' },
-    { label: 'Voice Syntheses (TTS)', value: analytics?.totalVoiceGenerations ?? 1, icon: Mic, color: 'var(--accent-rose)' },
     { label: 'Agent Sessions', value: analytics?.totalAgentSessions ?? 1, icon: Bot, color: 'var(--accent-amber)' },
   ];
 
@@ -95,7 +94,7 @@ export const AnalyticsPage: React.FC = () => {
             Average Consistency Score: {analytics?.avgConsistencyScore ?? 100}%
           </h3>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '4px', maxWidth: '600px' }}>
-            Proportional consistency score calculated directly from Prisma database records. Tracks zero fact drift across all multimodal text, voice, and video outputs.
+            Proportional consistency score calculated directly from Prisma database records. Tracks zero fact drift across all generated text and document outputs.
           </p>
         </div>
       </div>

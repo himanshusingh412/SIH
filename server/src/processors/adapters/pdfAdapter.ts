@@ -35,18 +35,24 @@ export function cleanPdfRawSyntax(text: string): string {
   if (!text || typeof text !== 'string') return '';
 
   return text
-    .replace(/\/MediaBox\s*\[[^\]]*\]/gi, '')
-    .replace(/\/Resources\s*<<[^>]*>>/gi, '')
-    .replace(/\/ProcSet\s*\[[^\]]*\]/gi, '')
-    .replace(/\/Font\s*<<[^>]*>>/gi, '')
-    .replace(/\/Type\s*\/[A-Za-z0-9]+/gi, '')
-    .replace(/\/Length\s+\d+/gi, '')
-    .replace(/\/Filter\s*\/[A-Za-z0-9]+/gi, '')
-    .replace(/\bstream[\s\S]*?endstream\b/gi, '')
-    .replace(/\b\d+\s+\d+\s+obj[\s\S]*?endobj\b/gi, '')
-    .replace(/\bxref[\s\S]*?trailer\b/gi, '')
-    .replace(/\bstartxref[\s\S]*?%%EOF\b/gi, '')
-    .replace(/<<\s*\/[A-Za-z0-9]+\s+[^>]*>>/gi, '')
+    .split('\n')
+    .filter((line) => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('%PDF-') || trimmed.startsWith('%') || trimmed.startsWith('<<') || trimmed.startsWith('>>') || trimmed.startsWith('/')) {
+        return false;
+      }
+      if (/^\d+\s+\d+\s+(?:obj|R|n|f)$/i.test(trimmed) || /^\d{10}\s+\d{5}\s+[nf]$/i.test(trimmed) || /^endobj$/i.test(trimmed)) {
+        return false;
+      }
+      if (/^stream$/i.test(trimmed) || /^endstream$/i.test(trimmed) || /^xref$/i.test(trimmed) || /^trailer$/i.test(trimmed) || /^startxref$/i.test(trimmed) || /^%%EOF$/i.test(trimmed)) {
+        return false;
+      }
+      if (/^\(PDFKit\)$/i.test(trimmed) || /^\[\s*\]$/i.test(trimmed) || /^0\s+\d+$/i.test(trimmed)) {
+        return false;
+      }
+      return true;
+    })
+    .join('\n')
     .replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]/g, ' ') // Strip binary non-printable controls
     .replace(/[ \t]+/g, ' ')
     .replace(/\n{3,}/g, '\n\n')
@@ -93,14 +99,8 @@ export class PdfAdapter implements InputAdapter {
     }
 
     try {
-      // 2. Parse PDF page-by-page using pdf-parse
-      let parsed: any;
-      try {
-        parsed = await pdfParse(buffer, { pagerender: pageRender });
-      } catch {
-        parsed = await pdfParse(buffer);
-      }
-
+      // 2. Parse PDF using pdf-parse
+      const parsed = await pdfParse(buffer);
       let extractedText = parsed.text || '';
 
       // 3. Clean raw PDF syntax contamination

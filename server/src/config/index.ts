@@ -15,11 +15,6 @@ export const config = {
   demoMode: process.env.DEMO_MODE === 'true',
   geminiApiKey: process.env.AI_API_KEY || process.env.GEMINI_API_KEY || '',
   openaiApiKey: process.env.OPENAI_API_KEY || '',
-  // Audio & ElevenLabs Configuration
-  aiAudioProvider: process.env.AI_AUDIO_PROVIDER || 'elevenlabs',
-  elevenlabsApiKey: process.env.ELEVENLABS_API_KEY || '',
-  elevenlabsVoiceId: process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM', // Rachel
-  elevenlabsModel: process.env.ELEVENLABS_MODEL || 'eleven_multilingual_v2',
 };
 
 export const prisma = new PrismaClient({

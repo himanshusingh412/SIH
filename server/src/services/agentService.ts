@@ -1,6 +1,5 @@
 import { prisma } from '../config';
 import { getAIProvider } from '../ai/provider';
-import { getAudioProvider } from '../ai/providers/audioProvider';
 
 export interface AgentGuardrails {
   sourceOnly: boolean; // Source-only factual guardrail
@@ -150,34 +149,6 @@ ${factContext}`;
       sourceOnly: true,
       toolCalls,
       factLocksVerified: verifiedKeys,
-    };
-  }
-
-  /**
-   * Voice Agent Interaction: Speech -> ContentSpine -> Audio Response
-   */
-  async askVoiceAgent(projectId: string, voiceId?: string, queryText?: string) {
-    const textQuery = queryText || 'What happened during the incident and how many systems were affected?';
-    const qaResult = await this.askAgent(projectId, textQuery);
-
-    const audioProvider = getAudioProvider();
-    const ttsResult = await audioProvider.generateTTS({
-      text: qaResult.answer,
-      voiceId,
-    });
-
-    // Save audio file pointer or reference
-    const audioUrl = `data:${ttsResult.mimeType};base64,${ttsResult.audioBuffer.toString('base64')}`;
-
-    await prisma.agentMessage.update({
-      where: { id: qaResult.messageId },
-      data: { audioUrl },
-    });
-
-    return {
-      ...qaResult,
-      audioUrl,
-      durationSeconds: ttsResult.durationSeconds,
     };
   }
 
