@@ -1,5 +1,8 @@
 import { prisma, config } from '../config';
 import { getAIProvider } from '../ai/provider';
+import { ProjectService } from './projectService';
+
+const projectService = new ProjectService();
 
 export interface AgentGuardrails {
   sourceOnly: boolean;
@@ -71,7 +74,7 @@ export class AgentService {
       },
     });
 
-    if ((!spine || !spine.facts || spine.facts.length === 0) && (projectId === 'demo-project' || projectId === 'default')) {
+    if (!spine || !spine.facts || spine.facts.length === 0) {
       spine = await prisma.contentSpine.findFirst({
         orderBy: { createdAt: 'desc' },
         include: {
@@ -87,6 +90,32 @@ export class AgentService {
           entities: true,
         },
       });
+    }
+
+    // Auto-seed if SQLite in-memory/tmp database is empty on Vercel cold container
+    if (!spine || !spine.facts || spine.facts.length === 0) {
+      try {
+        const seeded = await projectService.seedDemoProject();
+        if (seeded && seeded.projectId) {
+          spine = await prisma.contentSpine.findFirst({
+            where: { projectId: seeded.projectId },
+            include: {
+              facts: {
+                include: {
+                  references: {
+                    include: {
+                      sourceDocument: true,
+                    },
+                  },
+                },
+              },
+              entities: true,
+            },
+          });
+        }
+      } catch (e) {
+        // Ignore seed errors
+      }
     }
 
     // Requirement 3: If no verified facts/source contents exist for this project

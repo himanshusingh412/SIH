@@ -19,6 +19,25 @@ export class ProjectService {
     return this.repo.findProjectById(projectId);
   }
 
+  async seedDemoProject() {
+    const demoText = `SIH 2026 Cyber Threat Intelligence & AI Platform Report.
+Executive Summary: In Q3 2026, Smart India Hackathon introduced the AI Content Transformation Engine. The platform achieved 99.9% factual consistency across 500+ generated documents. Key milestone target date set for 2026-08-24. Ministry of Education and AI Innovation Cell verified zero fact drift across Executive Summaries, Advisories, Presentations, and Video Packages.`;
+
+    const project = await this.createProject(
+      'Demo: Cyber Threat Intelligence & AI Transformation',
+      'SIH 2026 Official Demo Benchmark Dataset'
+    );
+
+    const ingestResult = await this.ingestDocument(
+      project.id,
+      undefined,
+      'THREAT_INTEL',
+      demoText
+    );
+
+    return { projectId: project.id, ingestResult };
+  }
+
   async listProjects() {
     return this.repo.listProjects();
   }
