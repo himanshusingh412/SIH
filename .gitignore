@@ -16,3 +16,4 @@ dev.db
 # Logs & Temporary Files
 *.log
 .DS_Store
+.vercel
