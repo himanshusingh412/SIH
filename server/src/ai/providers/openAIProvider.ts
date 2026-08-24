@@ -94,8 +94,12 @@ export class OpenAIProvider implements AIProviderInstance {
 
       const json: any = await response.json();
       const content = json.choices?.[0]?.message?.content || '';
+      const formattedType = outputType
+        .split('_')
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(' ');
       return {
-        title: `${outputType.replace(/_/g, ' ')} (${audience}) — GPT-4o`,
+        title: `${formattedType} (OpenAI)`,
         content: content || 'OpenAI generation complete.',
       };
     } catch (err) {

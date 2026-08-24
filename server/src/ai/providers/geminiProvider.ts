@@ -83,8 +83,12 @@ Provide formatted deliverable content.`;
 
       const result = await model.generateContent(prompt);
       const text = result.response.text();
+      const formattedType = outputType
+        .split('_')
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(' ');
       return {
-        title: `${outputType.replace(/_/g, ' ')} (${audience}) — Gemini (${modelName})`,
+        title: `${formattedType} (Gemini)`,
         content: text || 'Gemini output generation completed.',
       };
     } catch (err: any) {

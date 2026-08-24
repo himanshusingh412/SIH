@@ -54,9 +54,25 @@ export class MockAIProvider implements AIProvider {
       },
     ];
 
+    const dateLabelNames = [
+      'Target Milestone Date',
+      'Deployment Release Window',
+      'Verification Review Date',
+      'Compliance Deadline',
+      'Audit Milestone Date',
+    ];
+
+    const metricLabelNames = [
+      'Detection Accuracy Rate',
+      'Annual Cost Reduction',
+      'Processed Volume / Count',
+      'System Efficiency Gain',
+      'Latency Reduction',
+    ];
+
     const dates: FactItem[] = matchedDates.slice(0, 5).map((d, idx) => ({
       id: `date-${idx + 1}`,
-      key: `Target Milestone / Date #${idx + 1}`,
+      key: dateLabelNames[idx] || `Milestone Date ${idx + 1}`,
       value: d,
       category: 'DATE',
       isLocked: true,
@@ -66,7 +82,7 @@ export class MockAIProvider implements AIProvider {
 
     const numbers: FactItem[] = matchedNumbers.slice(0, 5).map((n, idx) => ({
       id: `num-${idx + 1}`,
-      key: `Metric / Statistic #${idx + 1}`,
+      key: metricLabelNames[idx] || `Metric Statistic ${idx + 1}`,
       value: n,
       category: 'NUMBER',
       isLocked: true,

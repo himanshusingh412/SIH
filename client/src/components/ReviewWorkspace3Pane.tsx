@@ -419,7 +419,16 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
                 {formats.find((f) => f.type === selectedType)?.label || selectedType}
               </span>
               <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'white' }}>
-                {currentOutput?.title || `${selectedType} Output`}
+                {(currentOutput?.title || `${selectedType} Output`)
+                  .replace(/EXECUTIVE SUMMARY \(EXECUTIVE\)/gi, 'Executive Summary')
+                  .replace(/LINKEDIN POST \(EXECUTIVE\)/gi, 'LinkedIn Post')
+                  .replace(/X THREAD \(EXECUTIVE\)/gi, 'X Thread')
+                  .replace(/ADVISORY \(EXECUTIVE\)/gi, 'Official Advisory')
+                  .replace(/PRESENTATION \(EXECUTIVE\)/gi, 'Presentation Deck')
+                  .replace(/INFOGRAPHIC \(EXECUTIVE\)/gi, 'Infographic Layout Data')
+                  .replace(/VIDEO PACKAGE \(EXECUTIVE\)/gi, 'Video Package')
+                  .replace(/\s*—\s*Gemini\s*\(gemini-[^\)]+\)/gi, ' (Gemini)')
+                  .replace(/\s*—\s*GPT-4o/gi, ' (OpenAI)')}
               </h3>
             </div>
 
@@ -429,7 +438,7 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
                 onClick={() => handleInspectTraceability(currentOutput?.title || 'Deliverable Statement')}
                 style={{ fontSize: '0.78rem' }}
               >
-                <HelpCircle size={14} /> [Why was this generated?]
+                <HelpCircle size={14} /> Why was this generated?
               </button>
               <button
                 className="btn-secondary"

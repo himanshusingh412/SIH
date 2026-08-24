@@ -26,11 +26,30 @@ export class FactLockEngine {
     const finalDates = matchedDates.length > 0 ? matchedDates : ['2026-08-24', 'Q3 2026'];
     const finalNumbers = matchedNumbers.length > 0 ? matchedNumbers : ['99.9%', '500+'];
 
+    // Domain contextual titles for extracted facts
+    const dateLabelNames = [
+      'Target Milestone Date',
+      'Deployment Release Window',
+      'Verification Review Date',
+      'Compliance Deadline',
+      'Audit Milestone Date',
+      'Phase 1 Completion Date',
+    ];
+
+    const metricLabelNames = [
+      'Detection Accuracy Rate',
+      'Annual Cost Reduction',
+      'Processed Volume / Count',
+      'System Efficiency Gain',
+      'Latency Reduction',
+      'Factual Consistency Score',
+    ];
+
     // Extract Dates
     finalDates.slice(0, 6).forEach((d, idx) => {
       const chunk = chunks.find((c) => c.text.includes(d)) || chunks[0] || { pageNumber: 1, text: cleanText };
       facts.push({
-        key: `Milestone Date #${idx + 1}`,
+        key: dateLabelNames[idx] || `Milestone Date ${idx + 1}`,
         value: d,
         category: 'DATE',
         isLocked: true,
@@ -44,7 +63,7 @@ export class FactLockEngine {
     finalNumbers.slice(0, 6).forEach((n, idx) => {
       const chunk = chunks.find((c) => c.text.includes(n)) || chunks[0] || { pageNumber: 1, text: cleanText };
       facts.push({
-        key: `Metric / Statistic #${idx + 1}`,
+        key: metricLabelNames[idx] || `Metric Statistic ${idx + 1}`,
         value: n,
         category: 'NUMBER',
         isLocked: true,
