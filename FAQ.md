@@ -15,7 +15,7 @@
 ### Q3: How do users verify where a specific claim came from?
 **Answer**:
 > *"Every output claim includes an interactive `[Why was this generated?]` inspector button. Clicking it displays a **4-Tier Source Lineage Inspector**:
-> $$\text{Generated Statement} \longrightarrow \text{Content Spine Fact} \longrightarrow \text{Source Document} \longrightarrow \text{Raw Text Quote \& Page Number}$$
+> `Generated Statement` → `Content Spine Fact` → `Source Document` → `Raw Text Quote & Page Number`
 > This provides 100% auditability for government reviewers."*
 
 ---

@@ -82,8 +82,7 @@ graph TB
 
 ### 2.4 Consistency Validator (`server/src/validators/consistencyValidator.ts`)
 * Compares generated deliverable content against locked facts.
-* Computes proportional consistency score:
-  $$\text{Score} = \max\left(0, 100 - \frac{\text{Errors}}{\text{Total Facts}} \times 60 - \frac{\text{Warnings}}{\text{Total Facts}} \times 20\right)$$
+* Computes proportional consistency score: `Score = max(0, 100 - (Errors / Total Facts) * 60 - (Warnings / Total Facts) * 20)`
 * Generates detailed `ValidationIssue` items with expected vs found values and suggested fixes.
 
 ### 2.5 Auto-Fix Loop (`server/src/services/projectService.ts`)

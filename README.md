@@ -1,12 +1,17 @@
-# ContentSpine AI — AI-Powered Content Transformation Platform (SIH 2026)
+# 🚀 SIH 2026 — AI-Powered Content Transformation Engine
 
-> **Upload Once → Extract → Build Content Spine → Lock Facts → Generate Multiple Outputs → Validate Consistency → Show Source Mapping → Review → Export**
-
-ContentSpine AI is a government and enterprise-grade content transformation engine designed for Smart India Hackathon (SIH) 2026. The platform's core innovation is the **Content Spine**—a single, immutable source of truth that extracts and locks critical facts (dates, metrics, organizations, dates, claims, and risks) before generating multi-channel communication deliverables.
+> **Single Source of Truth (Content Spine) & Fact-Locking Multi-Channel Content Generator**
 
 ---
 
-## 🚀 Key Features
+## 📌 Problem & Solution
+
+* **The Problem**: Corporate communications, technical documentation, public advisories, and social media releases derived from single source documents often introduce fact drift, inconsistent dates, altered statistics, and hallucinated claims.
+* **The Solution**: An end-to-end AI platform that ingests raw source material (PDF, DOCX, TXT, Images, JSON), constructs an immutable **Content Spine** with a **Fact Lock Layer**, generates 7 distinct channel deliverables simultaneously, and runs an automated **Consistency Validator** loop.
+
+---
+
+## ⚡ Key Features
 
 * **Multi-Format Source Ingestion**: Supports PDF, TXT, MD, JSON, Images, DOCX, and free-form prompts.
 * **Content Spine Architecture**: Single source of truth containing entities, facts, events, risks, recommendations, and source references.
@@ -22,7 +27,7 @@ ContentSpine AI is a government and enterprise-grade content transformation engi
 * **Consistency Validator**: 8-category fact contradiction detector with proportional scoring (`0–100%`).
 * **Auto-Fix Loop**: 3-retry automated correction engine that fixes fact drift and appends lock annotations.
 * **4-Tier Source Traceability Inspector**:
-  $$\text{Generated Statement} \longrightarrow \text{Content Spine Fact} \longrightarrow \text{Source Document} \longrightarrow \text{Raw Text Quote \& Page Number}$$
+  `Generated Statement` → `Content Spine Fact` → `Source Document` → `Raw Text Quote & Page Number`
 * **Offline Demo Mode**: 100% functional deterministic demo mode requiring no external API keys.
 
 ---
@@ -41,7 +46,13 @@ graph TD
     D --> E5[Presentation Deck]
     D --> E6[Infographic Layout]
     D --> E7[Video Package]
-    E1 & E2 & E3 & E4 & E5 & E6 & E7 --> F[Consistency Validator]
+    E1 --> F[Consistency Validator]
+    E2 --> F
+    E3 --> F
+    E4 --> F
+    E5 --> F
+    E6 --> F
+    E7 --> F
     F -->|Discrepancies Detected| G[3-Retry Auto-Fix Loop]
     F -->|Zero Fact Drift| H[3-Pane Review Workspace & Export]
 ```
@@ -63,60 +74,48 @@ graph TD
 * Node.js v18+ and `npm`
 
 ### 2. Environment Setup
-```bash
-# Clone repository
-git clone https://github.com/sih2026/content-spine-ai.git
-cd SIH
-
-# Configure Server Environment
-cp server/.env.example server/.env
+Create `server/.env`:
+```env
+PORT=5001
+NODE_ENV=development
+DATABASE_URL="file:./dev.db"
+AI_PROVIDER=gemini
+AI_API_KEY=your_gemini_api_key_here
+AI_MODEL=gemini-3.1-flash-lite
+DEMO_MODE=false
 ```
 
-### 3. Install & Start Backend
+### 3. Install & Run
 ```bash
+# Terminal 1 — Backend
 cd server
 npm install
-npx prisma db push
+npx prisma generate
 npm run dev
-```
-*Backend server will start at `http://localhost:5001`.*
 
-### 4. Install & Start Frontend
-```bash
-cd ../client
+# Terminal 2 — Frontend
+cd client
 npm install
 npm run dev
 ```
-*Frontend dev server will start at `http://localhost:5173`.*
+
+Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ---
 
-## 🧪 Testing
+## 📄 Documentation Index
 
-Run the full automated Unit, Integration, and E2E test suite:
-```bash
-cd server
-npm run test
-```
-
----
-
-## 📜 Documentation
-
-* [PRD Document](PRD.md)
-* [System Architecture](ARCHITECTURE.md)
-* [Tech Stack Breakdown](TECH_STACK.md)
-* [Database Models & ER Schema](DATABASE.md)
-* [REST API Reference](API.md)
-* [Features & Status](FEATURES.md)
-* [User Flow & Lifecycle](USER_FLOW.md)
-* [Security & Hardening](SECURITY.md)
-* [Demo Script for Judges](DEMO_SCRIPT.md)
-* [Presentation Content](PPT_CONTENT.md)
-* [Judge FAQ](FAQ.md)
+* [PRD.md](file:///Users/himanshusingh/Downloads/hackathon/SIH/PRD.md) — Product Requirements Document
+* [ARCHITECTURE.md](file:///Users/himanshusingh/Downloads/hackathon/SIH/ARCHITECTURE.md) — Complete System & Data Architecture
+* [API.md](file:///Users/himanshusingh/Downloads/hackathon/SIH/API.md) — REST API Endpoints Reference
+* [FEATURES.md](file:///Users/himanshusingh/Downloads/hackathon/SIH/FEATURES.md) — Full Feature Matrix
+* [DATABASE.md](file:///Users/himanshusingh/Downloads/hackathon/SIH/DATABASE.md) — Prisma Database Schema & Models
+* [SECURITY.md](file:///Users/himanshusingh/Downloads/hackathon/SIH/SECURITY.md) — Security & Secret Exposure Audit
+* [DEPLOYMENT.md](file:///Users/himanshusingh/Downloads/hackathon/SIH/DEPLOYMENT.md) — Production Deployment Guide
+* [DEMO_SCRIPT.md](file:///Users/himanshusingh/Downloads/hackathon/SIH/DEMO_SCRIPT.md) — Step-by-Step SIH Demo Walkthrough
 
 ---
 
-## 📄 License
+## 📜 License
 
-This repository is built for Smart India Hackathon (SIH) 2026 evaluation. Select project-owner licensing upon deployment.
+[MIT License](file:///Users/himanshusingh/Downloads/hackathon/SIH/LICENSE.md) © 2026 SIH Development Team.

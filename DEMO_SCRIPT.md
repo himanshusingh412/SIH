@@ -30,8 +30,7 @@
 
 **Presenter**:
 1. Show the **3-Pane Review Workspace**: Click through Executive Summary, LinkedIn, X Thread, Advisory, Presentation Deck, Infographic Layout, and Video Package.
-2. Click **`[Why was this generated?]`**: Point to the **4-Tier Source Lineage Inspector**:
-   $$\text{Generated Statement} \longrightarrow \text{Content Spine Fact} \longrightarrow \text{Document} \longrightarrow \text{Raw Text Quote \& Page Number}$$
+2. Click **`[Why was this generated?]`**: Point to the **4-Tier Source Lineage Inspector**: `Generated Statement` → `Content Spine Fact` → `Document` → `Raw Text Quote & Page Number`
 3. Click **"Inject Fact Error"**: Intentionally corrupt a date (e.g. `2026-08-24` → `2026-09-15`). Show the score drop live to 66% and flag a red Discrepancy Error.
 4. Click **"⚡ Fix Automatically"**: Watch the 3-retry auto-correction loop fix the fact drift in real time and restore the score to 100%!
 
