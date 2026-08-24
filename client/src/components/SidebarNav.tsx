@@ -60,7 +60,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
             alignItems: 'center',
             gap: '12px',
             padding: '8px 12px',
-            marginBottom: '24px',
+            marginBottom: '20px',
             cursor: 'pointer',
           }}
         >
@@ -78,16 +78,16 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
             <Sparkles size={20} color="white" />
           </div>
           <div>
-            <div style={{ fontWeight: 800, fontSize: '1.1rem', letterSpacing: '-0.3px' }} className="gradient-text">
+            <div style={{ fontWeight: 800, fontSize: 'var(--font-md)', letterSpacing: '-0.3px' }} className="gradient-text">
               ContentSpine AI
             </div>
-            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+            <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)', fontWeight: 600 }}>
               Multimodal Content Engine
             </div>
           </div>
         </div>
 
-        {/* Start New Transformation Button */}
+        {/* Start New Transformation Button (Issue 10) */}
         <button
           className="btn-primary"
           onClick={() => onNavigate('new-transformation')}
@@ -95,14 +95,14 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
             width: '100%',
             justifyContent: 'center',
             marginBottom: '16px',
-            padding: '10px',
-            fontSize: '0.85rem',
+            height: '40px',
           }}
         >
-          <PlusCircle size={16} /> New Transformation
+          <PlusCircle size={16} />
+          <span>New Transformation</span>
         </button>
 
-        {/* Navigation Items */}
+        {/* Navigation Items (Issue 13 & 14) */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -114,30 +114,27 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '12px',
-                  padding: '10px 12px',
-                  borderRadius: '9px',
+                  gap: '10px',
+                  padding: '0 12px',
+                  height: '38px', // Fixed height prevents wrapping height changes (Issue 13)
+                  borderRadius: '8px',
                   background: active ? 'rgba(99, 102, 241, 0.16)' : 'transparent',
                   color: active ? '#ffffff' : 'var(--text-muted)',
                   border: active ? '1px solid rgba(99, 102, 241, 0.35)' : '1px solid transparent',
                   cursor: 'pointer',
-                  fontWeight: active ? 700 : 500,
-                  fontSize: '0.86rem',
-                  transition: 'all 0.15s ease',
-                  textAlign: 'left',
+                  fontWeight: active ? 600 : 500,
+                  fontSize: 'var(--font-sm)',
+                  whiteSpace: 'nowrap', // Single line lock (Issue 13)
                   width: '100%',
                   justifyContent: 'space-between',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <Icon size={17} color={active ? '#818cf8' : 'var(--text-muted)'} />
-                  <span>{item.label}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+                  <Icon size={17} color={active ? '#818cf8' : 'var(--text-muted)'} style={{ flexShrink: 0 }} />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.label}</span>
                 </div>
                 {item.badge && (
-                  <span
-                    className="badge badge-indigo"
-                    style={{ fontSize: '0.58rem', padding: '2px 6px' }}
-                  >
+                  <span className="nav-badge" style={{ flexShrink: 0 }}>
                     {item.badge}
                   </span>
                 )}
@@ -146,7 +143,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
           })}
         </div>
 
-        {/* Active Project Card in Sidebar */}
+        {/* Active Project Card in Sidebar (Issue 3 & Issue 6) */}
         {activeProjectTitle && (
           <div
             style={{
@@ -157,23 +154,30 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
               padding: '12px',
             }}
           >
-            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
+            <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)', fontWeight: 700 }}>
               Active Workspace
             </div>
+            {/* Multi-line display prevents single line truncation (Issue 6) */}
             <div
               style={{
-                fontSize: '0.82rem',
+                fontSize: 'var(--font-sm)',
                 fontWeight: 700,
                 color: 'white',
                 marginTop: '4px',
-                whiteSpace: 'nowrap',
+                whiteSpace: 'normal',
+                wordBreak: 'break-word',
+                lineHeight: 1.3,
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
                 overflow: 'hidden',
-                textOverflow: 'ellipsis',
               }}
+              title={activeProjectTitle}
             >
               {activeProjectTitle}
             </div>
-            <span className="badge badge-emerald" style={{ fontSize: '0.62rem', marginTop: '6px', display: 'inline-block' }}>
+            {/* Standard sentence case badge removes 19-char all-caps block (Issue 3) */}
+            <span className="badge badge-emerald" style={{ fontSize: 'var(--font-xs)', marginTop: '8px', display: 'inline-block' }}>
               Fact Lock Protected
             </span>
           </div>
@@ -184,7 +188,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
       <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }} />
-          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>ContentSpine v2.0</span>
+          <span style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)' }}>ContentSpine v2.0</span>
         </div>
         <Settings size={16} color="var(--text-muted)" style={{ cursor: 'pointer' }} onClick={() => onNavigate('settings')} />
       </div>

@@ -3,6 +3,16 @@
 :root {
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
+
+  /* Standardized Type Scale (Issue 1) */
+  --font-xs: 0.75rem;   /* 12px - Badges, captions, subtext */
+  --font-sm: 0.875rem;  /* 14px - Body small, nav items, buttons */
+  --font-base: 1rem;    /* 16px - Body text, default inputs */
+  --font-md: 1.125rem;  /* 18px - Subheadings, card titles */
+  --font-lg: 1.25rem;   /* 20px - Section headers */
+  --font-xl: 1.5rem;    /* 24px - Large section headers */
+  --font-2xl: 2rem;     /* 32px - Page titles, hero text */
+  --font-3xl: 2.25rem;  /* 36px - Metric displays */
   
   --bg-dark: #0b0f19;
   --bg-card: rgba(18, 24, 38, 0.75);
@@ -55,20 +65,22 @@ body {
   -webkit-text-fill-color: transparent;
 }
 
+/* Standardized Button System (Issue 2) */
 .btn-primary {
   background: linear-gradient(135deg, #4f46e5 0%, #0284c7 100%);
   color: white;
   border: none;
-  padding: 10px 20px;
+  padding: 8px 16px;
   border-radius: 8px;
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: var(--font-sm);
   cursor: pointer;
   transition: all 0.2s ease-in-out;
   display: inline-flex;
   align-items: center;
   gap: 8px;
   box-shadow: 0 4px 14px rgba(79, 70, 229, 0.3);
+  height: 38px;
 }
 
 .btn-primary:hover {
@@ -80,15 +92,16 @@ body {
   background: rgba(255, 255, 255, 0.05);
   color: var(--text-main);
   border: 1px solid var(--border-color);
-  padding: 10px 18px;
+  padding: 8px 16px;
   border-radius: 8px;
   font-weight: 500;
-  font-size: 0.95rem;
+  font-size: var(--font-sm);
   cursor: pointer;
   transition: all 0.2s ease;
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  height: 38px;
 }
 
 .btn-secondary:hover {
@@ -96,13 +109,33 @@ body {
   border-color: var(--text-muted);
 }
 
+.btn-ghost {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid transparent;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: var(--font-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+}
+
+.btn-sm { height: 32px; padding: 4px 12px; font-size: var(--font-xs); }
+.btn-lg { height: 44px; padding: 12px 24px; font-size: var(--font-base); }
+
+/* Standardized Badges (Issue 3 & 14) */
 .badge {
   padding: 4px 10px;
   border-radius: 20px;
-  font-size: 0.75rem;
+  font-size: var(--font-xs);
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
+  /* Removed uppercase text transform */
 }
 
 .badge-indigo {
@@ -127,6 +160,16 @@ body {
   background: rgba(244, 63, 94, 0.2);
   color: #fda4af;
   border: 1px solid rgba(244, 63, 94, 0.3);
+}
+
+/* Subdued Sidebar Badge (Issue 14) */
+.nav-badge {
+  font-size: var(--font-xs);
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  font-weight: 500;
 }
 
 /* Custom Scrollbar */

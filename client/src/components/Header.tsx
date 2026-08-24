@@ -32,12 +32,13 @@ export const Header: React.FC<HeaderProps> = ({
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         <span className="badge badge-indigo">SIH 2026 Engine</span>
-        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+        <div style={{ fontSize: 'var(--font-sm)', color: 'var(--text-muted)' }}>
           Single Source of Truth • Content Spine Architecture
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+      {/* Top Utility Bar (Issue 5 & Issue 12) */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         {/* Provider Selector */}
         <div
           style={{
@@ -45,7 +46,8 @@ export const Header: React.FC<HeaderProps> = ({
             alignItems: 'center',
             gap: '6px',
             background: 'rgba(255, 255, 255, 0.04)',
-            padding: '6px 12px',
+            padding: '0 12px',
+            height: '36px',
             borderRadius: '8px',
             border: '1px solid var(--border-color)',
           }}
@@ -60,7 +62,7 @@ export const Header: React.FC<HeaderProps> = ({
               border: 'none',
               outline: 'none',
               fontWeight: 600,
-              fontSize: '0.8rem',
+              fontSize: 'var(--font-sm)',
               cursor: 'pointer',
             }}
           >
@@ -70,16 +72,17 @@ export const Header: React.FC<HeaderProps> = ({
           </select>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} className="badge badge-emerald">
+        <div style={{ height: '36px', display: 'inline-flex', alignItems: 'center', gap: '6px' }} className="badge badge-emerald">
           <ShieldCheck size={14} />
           <span>Fact Lock Enforced</span>
         </div>
 
-        <button className="btn-secondary" onClick={onOpenExport} style={{ padding: '7px 14px', fontSize: '0.85rem' }}>
+        <button className="btn-secondary" onClick={onOpenExport} style={{ height: '36px', padding: '0 14px', fontSize: 'var(--font-sm)' }}>
           <Download size={15} /> Export
         </button>
 
-        <button className="btn-primary" onClick={onLoadDemo} disabled={isLoading} style={{ padding: '7px 16px', fontSize: '0.85rem' }}>
+        {/* Changed from btn-primary to btn-secondary to prevent competing with main Hero CTA (Issue 12) */}
+        <button className="btn-secondary" onClick={onLoadDemo} disabled={isLoading} style={{ height: '36px', padding: '0 14px', fontSize: 'var(--font-sm)' }}>
           <Zap size={15} /> Benchmark Demo
         </button>
       </div>
