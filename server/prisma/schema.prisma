@@ -39,6 +39,7 @@ model Project {
   sfxGenerations   SFXGeneration[]
   dubbingProjects  DubbingProject[]
   mediaAssets      MediaAsset[]
+  mediaConversions MediaConversion[]
   agents           Agent[]
   resumes          Resume[]
 
@@ -318,20 +319,50 @@ model DubbingTrack {
 }
 
 model MediaAsset {
-  id              String   @id @default(uuid())
-  projectId       String
-  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  assetType       String   // AUDIO, VIDEO, IMAGE, TRANSCRIPT, PRESENTATION
+  id              String            @id @default(uuid())
+  projectId       String?
+  project         Project?          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assetType       String            // AUDIO, VIDEO, IMAGE, TRANSCRIPT, PRESENTATION
   filename        String
   mimeType        String
   storageLocation String
-  sizeBytes       Int      @default(0)
-  provider        String   @default("local")
-  metadata        String?  // JSON metadata
-  createdAt       DateTime @default(now())
+  sizeBytes       Int               @default(0)
+  provider        String            @default("local")
+  metadata        String?           // JSON metadata
+  createdAt       DateTime          @default(now())
+  sourceConversions MediaConversion[] @relation("SourceAsset")
+  outputConversions MediaConversion[] @relation("OutputAsset")
 
   @@index([projectId])
   @@index([assetType])
+}
+
+model MediaConversion {
+  id              String      @id @default(uuid())
+  projectId       String?
+  project         Project?    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sourceAssetId   String
+  sourceAsset     MediaAsset  @relation("SourceAsset", fields: [sourceAssetId], references: [id], onDelete: Cascade)
+  outputAssetId   String?
+  outputAsset     MediaAsset? @relation("OutputAsset", fields: [outputAssetId], references: [id], onDelete: SetNull)
+  sourceFormat    String
+  targetFormat    String      @default("mp4")
+  status          String      @default("QUEUED") // QUEUED, PROCESSING, COMPLETED, FAILED, CANCELLED
+  progress        Int         @default(0)
+  sourceSize      Int         @default(0)
+  outputSize      Int?        @default(0)
+  sourceDuration  Float?      @default(0.0)
+  outputDuration  Float?      @default(0.0)
+  sourceCodec     String?
+  outputCodec     String?
+  error           String?
+  createdAt       DateTime    @default(now())
+  completedAt     DateTime?
+
+  @@index([projectId])
+  @@index([sourceAssetId])
+  @@index([outputAssetId])
+  @@index([status])
 }
 
 model Agent {

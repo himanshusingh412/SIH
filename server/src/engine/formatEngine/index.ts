@@ -8,6 +8,8 @@ import { communicationFormatters, AdvisoryInput, IncidentReportInput } from './f
 import { formatValidator, ValidationCheckResult } from './formatValidator';
 import { ContentSpineData } from '../../types';
 
+import { probeVideo, convertMovToMp4, validateMp4Output, VideoMetadata, ConversionOptions } from './converters/videoConverter';
+
 export class FormatEngine {
   private styleEngine: StyleEngine;
 
@@ -17,6 +19,26 @@ export class FormatEngine {
 
   setStylePreset(preset: StylePresetName) {
     this.styleEngine.setPreset(preset);
+  }
+
+  /**
+   * Video Format Converters
+   */
+  async probeVideoMetadata(filePath: string): Promise<VideoMetadata> {
+    return await probeVideo(filePath);
+  }
+
+  convertMovToMp4(
+    inputPath: string,
+    outputPath: string,
+    options?: ConversionOptions,
+    onProgress?: (percent: number) => void
+  ) {
+    return convertMovToMp4(inputPath, outputPath, options, onProgress);
+  }
+
+  async validateMp4(outputPath: string, sourceMeta: VideoMetadata): Promise<VideoMetadata> {
+    return await validateMp4Output(outputPath, sourceMeta);
   }
 
   /**

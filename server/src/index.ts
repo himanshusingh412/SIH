@@ -8,6 +8,7 @@ import projectRoutes from './routes/projectRoutes';
 import audioRoutes from './routes/audioRoutes';
 import agentRoutes from './routes/agentRoutes';
 import resumeRoutes from './routes/resumeRoutes';
+import mediaRoutes from './routes/mediaRoutes';
 
 const app = express();
 
@@ -40,6 +41,7 @@ app.use('/api', projectRoutes);
 app.use('/api', resumeRoutes);
 app.use('/api/audio', audioRoutes);
 app.use('/api/agents', agentRoutes);
+app.use('/api/media', mediaRoutes);
 
 // Global Error Handler
 app.use(errorHandler);

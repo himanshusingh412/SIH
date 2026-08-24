@@ -45,7 +45,8 @@ export type CreativeStudioTab =
   | 'music-studio'
   | 'sfx-studio'
   | 'dubbing'
-  | 'video-studio';
+  | 'video-studio'
+  | 'format-converter';
 
 export interface FactItem {
   id: string;

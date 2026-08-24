@@ -7,6 +7,7 @@ import { MusicStudio } from '../components/studios/MusicStudio';
 import { SFXStudio } from '../components/studios/SFXStudio';
 import { DubbingStudio } from '../components/studios/DubbingStudio';
 import { VideoStudio } from '../components/studios/VideoStudio';
+import { VideoFormatConverter } from '../components/studios/VideoFormatConverter';
 
 interface CreativeStudioPageProps {
   projectId: string;
@@ -28,6 +29,7 @@ export const CreativeStudioPage: React.FC<CreativeStudioPageProps> = ({
     { id: 'sfx-studio', label: 'Sound Effects', icon: Zap },
     { id: 'dubbing', label: 'Dubbing & Localization', icon: Languages },
     { id: 'video-studio', label: 'Video Studio', icon: Video },
+    { id: 'format-converter', label: 'Format Converter', icon: Video },
   ];
 
   return (
@@ -68,7 +70,8 @@ export const CreativeStudioPage: React.FC<CreativeStudioPageProps> = ({
       {activeTab === 'music-studio' && <MusicStudio projectId={projectId} />}
       {activeTab === 'sfx-studio' && <SFXStudio projectId={projectId} />}
       {activeTab === 'dubbing' && <DubbingStudio projectId={projectId} spine={spine} />}
-      {activeTab === 'video-studio' && <VideoStudio projectId={projectId} spine={spine} />}
+      {activeTab === 'video-studio' && <VideoStudio projectId={projectId} spine={spine} onOpenConverter={() => setActiveTab('format-converter')} />}
+      {activeTab === 'format-converter' && <VideoFormatConverter projectId={projectId} />}
     </div>
   );
 };

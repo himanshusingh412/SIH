@@ -123,4 +123,54 @@ export const apiClient = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ injections }),
     }),
+
+  // Media & Video Conversion
+  uploadMediaAsset: (file: File, projectId?: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (projectId) formData.append('projectId', projectId);
+    return request<{ success: boolean; mediaAsset: any }>('/media/upload', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  convertMedia: (options: {
+    sourceAssetId: string;
+    targetFormat?: string;
+    resolution?: string;
+    quality?: string;
+    fps?: string;
+    audioBitrate?: string;
+    projectId?: string;
+  }) =>
+    request<{ success: boolean; conversionId: string; status: string; progress: number; sourceAsset: any }>(
+      '/media/convert',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(options),
+      }
+    ),
+
+  getConversionStatus: (conversionId: string) =>
+    request<{ success: boolean; conversion: any }>(`/media/conversions/${conversionId}`),
+
+  cancelConversion: (conversionId: string) =>
+    request<{ success: boolean; message: string }>(`/media/conversions/${conversionId}/cancel`, {
+      method: 'POST',
+    }),
+
+  listMediaLibrary: (projectId?: string) =>
+    request<{ success: boolean; assets: any[]; conversions: any[] }>(
+      `/media/library${projectId ? `?projectId=${projectId}` : ''}`
+    ),
+
+  deleteMediaAsset: (assetId: string) =>
+    request<{ success: boolean; message: string }>(`/media/${assetId}`, {
+      method: 'DELETE',
+    }),
+
+  getMediaStreamUrl: (assetId: string) => `${API_BASE}/media/stream/${assetId}`,
+  getMediaDownloadUrl: (assetId: string) => `${API_BASE}/media/download/${assetId}`,
 };

@@ -5,9 +5,10 @@ import type { ContentSpineData } from '../../types';
 interface VideoStudioProps {
   projectId: string;
   spine: ContentSpineData | null;
+  onOpenConverter?: () => void;
 }
 
-export const VideoStudio: React.FC<VideoStudioProps> = ({ spine }) => {
+export const VideoStudio: React.FC<VideoStudioProps> = ({ spine, onOpenConverter }) => {
   const [activeSceneIndex, setActiveSceneIndex] = useState<number>(0);
 
   const scenes = [
@@ -51,7 +52,18 @@ export const VideoStudio: React.FC<VideoStudioProps> = ({ spine }) => {
               Multi-scene video package generator connecting Narration, Visual Specs, Audio Scores, and Subtitles.
             </p>
           </div>
-          <span className="badge badge-indigo">16:9 Landscape Spec</span>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            {onOpenConverter && (
+              <button
+                className="btn-primary"
+                onClick={onOpenConverter}
+                style={{ padding: '6px 12px', fontSize: '0.78rem' }}
+              >
+                <Film size={14} /> MOV → MP4 Converter
+              </button>
+            )}
+            <span className="badge badge-indigo">16:9 Landscape Spec</span>
+          </div>
         </div>
 
         {/* Scene Selection Timeline Bar */}
