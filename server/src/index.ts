@@ -30,6 +30,10 @@ app.use('/api', projectRoutes);
 // Global Error Handler
 app.use(errorHandler);
 
-app.listen(config.port, () => {
-  console.log(`🚀 SIH 2026 AI Content Transformation Server running on http://localhost:${config.port}`);
-});
+if (!process.env.VERCEL) {
+  app.listen(config.port, () => {
+    console.log(`🚀 SIH 2026 AI Content Transformation Server running on http://localhost:${config.port}`);
+  });
+}
+
+export default app;
