@@ -14,6 +14,10 @@ export class MockProvider implements AIProviderInstance {
   type: ProviderType = 'MOCK';
   private factEngine = new FactLockEngine();
 
+  async generateText(prompt: string): Promise<string> {
+    return `Based on the verified Content Spine: All locked facts and source references have been cross-checked for prompt "${prompt.slice(0, 80)}...".`;
+  }
+
   private generators = {
     EXECUTIVE_SUMMARY: new ExecutiveSummaryGenerator(),
     LINKEDIN_POST: new LinkedInPostGenerator(),

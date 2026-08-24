@@ -7,7 +7,8 @@ export type InputCategory =
   | 'POLICY'
   | 'IMAGE'
   | 'VIDEO'
-  | 'PROMPT';
+  | 'PROMPT'
+  | 'AUDIO';
 
 export type OutputType =
   | 'EXECUTIVE_SUMMARY'
@@ -23,6 +24,28 @@ export type AudienceProfile =
   | 'TECHNICAL'
   | 'GOVERNMENT'
   | 'PUBLIC';
+
+export type AppRoute =
+  | 'dashboard'
+  | 'projects'
+  | 'spine'
+  | 'creative-studio'
+  | 'agents'
+  | 'history'
+  | 'analytics'
+  | 'settings'
+  | 'new-transformation'
+  | 'processing'
+  | 'configuration'
+  | 'workspace';
+
+export type CreativeStudioTab =
+  | 'voice-studio'
+  | 'speech-to-text'
+  | 'music-studio'
+  | 'sfx-studio'
+  | 'dubbing'
+  | 'video-studio';
 
 export interface FactItem {
   id: string;
@@ -97,4 +120,31 @@ export interface ProjectData {
   spine?: ContentSpineData;
   outputs?: GeneratedOutput[];
   validationReport?: ValidationReportData;
+}
+
+export interface VoiceProfile {
+  id: string;
+  voiceId: string;
+  name: string;
+  provider: string;
+  category: string;
+  language: string;
+  gender: string;
+  previewUrl?: string;
+  description?: string;
+  isCloned?: boolean;
+  consentConfirmed?: boolean;
+}
+
+export interface AnalyticsData {
+  totalProjects: number;
+  totalContentSpines: number;
+  totalFactsLocked: number;
+  totalOutputsGenerated: number;
+  totalVoiceGenerations: number;
+  totalTranscriptions: number;
+  totalDubbingJobs: number;
+  totalAgentSessions: number;
+  totalMediaAssets: number;
+  avgConsistencyScore: number;
 }

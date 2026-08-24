@@ -3,6 +3,10 @@ import { RootLayout } from './layouts/RootLayout';
 import { SidebarNav } from './components/SidebarNav';
 import { Header } from './components/Header';
 import { DashboardPage } from './pages/DashboardPage';
+import { CreativeStudioPage } from './pages/CreativeStudioPage';
+import { AgentsPage } from './pages/AgentsPage';
+import { AnalyticsPage } from './pages/AnalyticsPage';
+import { SettingsPage } from './pages/SettingsPage';
 import { UploadStage } from './components/UploadStage';
 import { ProcessingScreen } from './components/ProcessingScreen';
 import { ContentSpineViewer } from './components/ContentSpineViewer';
@@ -79,7 +83,7 @@ export function App() {
     setRoute('workspace');
   };
 
-  // Legacy data transformations for UI components
+  // Data transformations for UI components
   const spineData = projectData?.contentSpines?.[0]
     ? {
         summary: projectData.contentSpines[0].summary || 'Structured Content Spine',
@@ -221,14 +225,36 @@ export function App() {
           />
 
           <main style={{ flex: 1, overflowY: 'auto' }}>
-            {/* Screen 1: Dashboard */}
-            {route === 'dashboard' && (
+            {/* Screen 1: Dashboard / Projects / History */}
+            {(route === 'dashboard' || route === 'projects' || route === 'history') && (
               <DashboardPage
                 projects={projectData ? [projectData] : []}
                 onStartNew={() => setRoute('new-transformation')}
                 onOpenProject={() => setRoute('workspace')}
               />
             )}
+
+            {/* Creative Studio Route */}
+            {route === 'creative-studio' && (
+              <CreativeStudioPage
+                projectId={projectData?.id || 'demo-project'}
+                spine={spineData}
+              />
+            )}
+
+            {/* AI Agents Route */}
+            {route === 'agents' && (
+              <AgentsPage
+                projectId={projectData?.id || 'demo-project'}
+                spine={spineData}
+              />
+            )}
+
+            {/* Analytics Route */}
+            {route === 'analytics' && <AnalyticsPage />}
+
+            {/* Settings Route */}
+            {route === 'settings' && <SettingsPage />}
 
             {/* Screen 2: New Transformation */}
             {route === 'new-transformation' && (

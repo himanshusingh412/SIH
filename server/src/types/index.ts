@@ -7,7 +7,8 @@ export type InputCategory =
   | 'POLICY'
   | 'IMAGE'
   | 'VIDEO'
-  | 'PROMPT';
+  | 'PROMPT'
+  | 'AUDIO';
 
 export type OutputType =
   | 'EXECUTIVE_SUMMARY'
@@ -60,33 +61,29 @@ export interface PresentationSlide {
   slideNumber: number;
   title: string;
   bulletPoints: string[];
-  visualPrompt?: string;
-  speakerNotes?: string;
+  visualPrompt: string;
+  speakerNotes: string;
 }
 
-export interface InfographicData {
-  title: string;
-  subtitle: string;
-  keyStats: Array<{ label: string; value: string; unit?: string }>;
-  sections: Array<{ heading: string; points: string[]; icon?: string }>;
-  takeaway: string;
+export interface InfographicLayoutData {
+  header: { title: string; subtitle: string };
+  heroMetrics: Array<{ label: string; value: string }>;
+  sectionCallouts: Array<{ title: string; text: string; icon: string }>;
+  footerNotes: string;
 }
 
 export interface VideoPackageData {
   title: string;
-  objective: string;
-  audience: string;
   targetDurationSeconds: number;
-  narrationScript: string;
-  scenes: Array<{
+  storyboard: Array<{
     sceneNumber: number;
-    timestampRange: string;
+    title: string;
+    narrationText: string;
     visualDescription: string;
-    voiceoverSnippet: string;
-    onScreenText: string;
+    durationSeconds: number;
   }>;
-  storyboardNotes: string;
-  narrationVoiceStyle: string;
+  narrationScriptFull: string;
+  soundtrackMood: string;
   subtitlesSRT: string;
   callToAction: string;
 }
@@ -128,4 +125,5 @@ export interface AIProvider {
     outputType: OutputType,
     content: string
   ): Promise<ValidationIssue[]>;
+  generateText?(prompt: string): Promise<string>;
 }

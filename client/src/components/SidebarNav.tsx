@@ -4,9 +4,13 @@ import {
   PlusCircle,
   Database,
   Settings,
-  ShieldCheck,
   Layers,
   Sparkles,
+  Mic,
+  Bot,
+  BarChart3,
+  History,
+  FolderKanban,
 } from 'lucide-react';
 
 interface SidebarNavProps {
@@ -22,10 +26,14 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
 }) => {
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'new-transformation', label: 'New Transformation', icon: PlusCircle },
+    { id: 'projects', label: 'Projects', icon: FolderKanban },
     { id: 'spine', label: 'Content Spine', icon: Database },
     { id: 'workspace', label: 'Review Workspace', icon: Layers },
-    { id: 'validation', label: 'Consistency Matrix', icon: ShieldCheck },
+    { id: 'creative-studio', label: 'Creative Studio', icon: Mic, badge: 'Multimodal' },
+    { id: 'agents', label: 'AI Agents', icon: Bot, badge: 'Knowledge' },
+    { id: 'history', label: 'History', icon: History },
+    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+    { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
   return (
@@ -72,10 +80,25 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
               ContentSpine AI
             </div>
             <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-              GovTech Enterprise Platform
+              Multimodal Content Engine
             </div>
           </div>
         </div>
+
+        {/* Start New Transformation Button */}
+        <button
+          className="btn-primary"
+          onClick={() => onNavigate('new-transformation')}
+          style={{
+            width: '100%',
+            justifyContent: 'center',
+            marginBottom: '16px',
+            padding: '10px',
+            fontSize: '0.85rem',
+          }}
+        >
+          <PlusCircle size={16} /> New Transformation
+        </button>
 
         {/* Navigation Items */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -90,21 +113,32 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
                   display: 'flex',
                   alignItems: 'center',
                   gap: '12px',
-                  padding: '11px 14px',
+                  padding: '10px 12px',
                   borderRadius: '9px',
                   background: active ? 'rgba(99, 102, 241, 0.16)' : 'transparent',
                   color: active ? '#ffffff' : 'var(--text-muted)',
                   border: active ? '1px solid rgba(99, 102, 241, 0.35)' : '1px solid transparent',
                   cursor: 'pointer',
                   fontWeight: active ? 700 : 500,
-                  fontSize: '0.88rem',
+                  fontSize: '0.86rem',
                   transition: 'all 0.15s ease',
                   textAlign: 'left',
                   width: '100%',
+                  justifyContent: 'space-between',
                 }}
               >
-                <Icon size={18} color={active ? '#818cf8' : 'var(--text-muted)'} />
-                <span>{item.label}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <Icon size={17} color={active ? '#818cf8' : 'var(--text-muted)'} />
+                  <span>{item.label}</span>
+                </div>
+                {item.badge && (
+                  <span
+                    className="badge badge-indigo"
+                    style={{ fontSize: '0.58rem', padding: '2px 6px' }}
+                  >
+                    {item.badge}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -114,19 +148,19 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
         {activeProjectTitle && (
           <div
             style={{
-              marginTop: '28px',
+              marginTop: '20px',
               background: 'rgba(255, 255, 255, 0.03)',
               border: '1px solid var(--border-color)',
               borderRadius: '10px',
               padding: '12px',
             }}
           >
-            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
+            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
               Active Workspace
             </div>
             <div
               style={{
-                fontSize: '0.85rem',
+                fontSize: '0.82rem',
                 fontWeight: 700,
                 color: 'white',
                 marginTop: '4px',
@@ -137,8 +171,8 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
             >
               {activeProjectTitle}
             </div>
-            <span className="badge badge-emerald" style={{ fontSize: '0.65rem', marginTop: '6px', display: 'inline-block' }}>
-              Fact Lock Active
+            <span className="badge badge-emerald" style={{ fontSize: '0.62rem', marginTop: '6px', display: 'inline-block' }}>
+              Fact Lock Protected
             </span>
           </div>
         )}
@@ -148,9 +182,9 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
       <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }} />
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>SIH 2026 Engine v1.0</span>
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>ContentSpine v2.0</span>
         </div>
-        <Settings size={16} color="var(--text-muted)" style={{ cursor: 'pointer' }} />
+        <Settings size={16} color="var(--text-muted)" style={{ cursor: 'pointer' }} onClick={() => onNavigate('settings')} />
       </div>
     </aside>
   );

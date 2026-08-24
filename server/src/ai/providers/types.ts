@@ -16,4 +16,5 @@ export interface AIProviderInstance {
     outputType: OutputType,
     content: string
   ): Promise<ValidationIssue[]>;
+  generateText?(prompt: string): Promise<string>;
 }

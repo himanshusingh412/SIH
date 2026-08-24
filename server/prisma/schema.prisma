@@ -32,6 +32,13 @@ model Project {
   validationResults ValidationResult[]
   generationJobs   GenerationJob[]
   audienceProfiles AudienceProfile[]
+  voiceGenerations VoiceGeneration[]
+  transcripts      Transcript[]
+  musicGenerations MusicGeneration[]
+  sfxGenerations   SFXGeneration[]
+  dubbingProjects  DubbingProject[]
+  mediaAssets      MediaAsset[]
+  agents           Agent[]
 
   @@index([userId])
   @@index([status])
@@ -43,7 +50,7 @@ model SourceDocument {
   project          Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
   filename         String
   fileType         String
-  inputCategory    String            // PDF, REPORT, ARTICLE, RESEARCH_PAPER, THREAT_INTEL, POLICY, IMAGE, VIDEO, PROMPT
+  inputCategory    String            // PDF, REPORT, ARTICLE, RESEARCH_PAPER, THREAT_INTEL, POLICY, IMAGE, VIDEO, PROMPT, AUDIO
   rawText          String
   fileSize         Int?              @default(0)
   pageCount        Int?              @default(1)
@@ -116,17 +123,18 @@ model SourceReference {
 }
 
 model Output {
-  id                String          @id @default(uuid())
+  id                String            @id @default(uuid())
   projectId         String
-  project           Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  outputType        String          // EXECUTIVE_SUMMARY, LINKEDIN_POST, X_THREAD, ADVISORY, PRESENTATION, INFOGRAPHIC, VIDEO_PACKAGE
+  project           Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  outputType        String            // EXECUTIVE_SUMMARY, LINKEDIN_POST, X_THREAD, ADVISORY, PRESENTATION, INFOGRAPHIC, VIDEO_PACKAGE
   audienceProfileId String?
-  audienceProfile   AudienceProfile? @relation(fields: [audienceProfileId], references: [id], onDelete: SetNull)
+  audienceProfile   AudienceProfile?  @relation(fields: [audienceProfileId], references: [id], onDelete: SetNull)
   currentVersionId  String?
-  isConsistent      Boolean         @default(true)
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  isConsistent      Boolean           @default(true)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
   versions          OutputVersion[]
+  voiceGenerations  VoiceGeneration[]
 
   @@index([projectId])
   @@index([outputType])
@@ -185,4 +193,194 @@ model AudienceProfile {
   outputs     Output[]
 
   @@index([projectId])
+}
+
+// ----------------------------------------------------
+// MULTIMODAL & CREATIVE STUDIO EXTENDED MODELS
+// ----------------------------------------------------
+
+model Voice {
+  id               String            @id @default(uuid())
+  voiceId          String            @unique // Provider voice ID (e.g., ElevenLabs ID)
+  name             String
+  provider         String            @default("elevenlabs") // elevenlabs, mock
+  category         String            @default("premade") // premade, cloned, professional
+  language         String            @default("en-US")
+  gender           String            @default("neutral")
+  previewUrl       String?
+  description      String?
+  isCloned         Boolean           @default(false)
+  consentConfirmed Boolean           @default(false)
+  createdAt        DateTime          @default(now())
+  voiceGenerations VoiceGeneration[]
+}
+
+model VoiceGeneration {
+  id             String      @id @default(uuid())
+  projectId      String
+  project        Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  outputId       String?
+  output         Output?     @relation(fields: [outputId], references: [id], onDelete: SetNull)
+  voiceId        String
+  voice          Voice       @relation(fields: [voiceId], references: [id], onDelete: Cascade)
+  text           String
+  audioUrl       String
+  durationSeconds Float      @default(0.0)
+  stability      Float       @default(0.5)
+  similarity     Float       @default(0.75)
+  style          Float       @default(0.0)
+  status         String      @default("COMPLETED") // PENDING, COMPLETED, FAILED
+  createdAt      DateTime    @default(now())
+
+  @@index([projectId])
+  @@index([voiceId])
+}
+
+model Transcript {
+  id          String              @id @default(uuid())
+  projectId   String
+  project     Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  filename    String
+  language    String              @default("en")
+  fullText    String
+  duration    Float               @default(0.0)
+  status      String              @default("COMPLETED")
+  createdAt   DateTime            @default(now())
+  segments    TranscriptSegment[]
+
+  @@index([projectId])
+}
+
+model TranscriptSegment {
+  id           String     @id @default(uuid())
+  transcriptId String
+  transcript   Transcript @relation(fields: [transcriptId], references: [id], onDelete: Cascade)
+  speaker      String     @default("Speaker 1")
+  startTime    Float
+  endTime      Float
+  text         String
+
+  @@index([transcriptId])
+}
+
+model MusicGeneration {
+  id             String   @id @default(uuid())
+  projectId      String
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  prompt         String
+  genre          String   @default("ambient")
+  mood           String   @default("calm")
+  durationSeconds Int     @default(30)
+  audioUrl       String
+  createdAt      DateTime @default(now())
+
+  @@index([projectId])
+}
+
+model SFXGeneration {
+  id             String   @id @default(uuid())
+  projectId      String
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  prompt         String
+  category       String   @default("alert")
+  audioUrl       String
+  createdAt      DateTime @default(now())
+
+  @@index([projectId])
+}
+
+model DubbingProject {
+  id             String         @id @default(uuid())
+  projectId      String
+  project        Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sourceLanguage String         @default("en")
+  targetLanguage String
+  status         String         @default("COMPLETED")
+  createdAt      DateTime       @default(now())
+  tracks         DubbingTrack[]
+
+  @@index([projectId])
+}
+
+model DubbingTrack {
+  id               String         @id @default(uuid())
+  dubbingProjectId String
+  dubbingProject   DubbingProject @relation(fields: [dubbingProjectId], references: [id], onDelete: Cascade)
+  originalText     String
+  translatedText   String
+  audioUrl         String
+  factLocksPassed  Boolean        @default(true)
+  createdAt        DateTime       @default(now())
+
+  @@index([dubbingProjectId])
+}
+
+model MediaAsset {
+  id              String   @id @default(uuid())
+  projectId       String
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assetType       String   // AUDIO, VIDEO, IMAGE, TRANSCRIPT, PRESENTATION
+  filename        String
+  mimeType        String
+  storageLocation String
+  sizeBytes       Int      @default(0)
+  provider        String   @default("local")
+  metadata        String?  // JSON metadata
+  createdAt       DateTime @default(now())
+
+  @@index([projectId])
+  @@index([assetType])
+}
+
+model Agent {
+  id              String         @id @default(uuid())
+  projectId       String
+  project         Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name            String         @default("ContentSpine Knowledge Agent")
+  instructions    String
+  voiceId         String?
+  language        String         @default("en-US")
+  guardrails      String         // JSON guardrail settings (source-only, PII filter)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  sessions        AgentSession[]
+  tests           AgentTest[]
+
+  @@index([projectId])
+}
+
+model AgentSession {
+  id        String         @id @default(uuid())
+  agentId   String
+  agent     Agent          @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  createdAt DateTime       @default(now())
+  messages  AgentMessage[]
+
+  @@index([agentId])
+}
+
+model AgentMessage {
+  id        String       @id @default(uuid())
+  sessionId String
+  session   AgentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role      String       // USER, ASSISTANT, SYSTEM
+  content   String
+  audioUrl  String?
+  toolCalls String?      // JSON trace of tools called
+  createdAt DateTime     @default(now())
+
+  @@index([sessionId])
+}
+
+model AgentTest {
+  id          String   @id @default(uuid())
+  agentId     String
+  agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  inputQuery  String
+  expectedAns String
+  actualAns   String
+  passed      Boolean
+  createdAt   DateTime @default(now())
+
+  @@index([agentId])
 }

@@ -13,6 +13,26 @@ export class GeminiProvider implements AIProviderInstance {
     return config.aiModel || 'gemini-3.1-flash-lite';
   }
 
+  async generateText(prompt: string): Promise<string> {
+    const apiKey = config.aiApiKey || config.geminiApiKey;
+    if (!apiKey || config.demoMode) {
+      return this.fallbackMock.generateText(prompt);
+    }
+
+    try {
+      const modelName = this.getModelName();
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: modelName });
+      const result = await model.generateContent(prompt);
+      return result.response.text() || 'Gemini text response generated.';
+    } catch (err: any) {
+      if (!config.demoMode && apiKey) {
+        throw new Error(`Gemini generateText API Error (${this.getModelName()}): ${err.message || err}`);
+      }
+      return this.fallbackMock.generateText(prompt);
+    }
+  }
+
   async extractContentSpine(rawText: string, category: InputCategory): Promise<ContentSpineData> {
     const apiKey = config.aiApiKey || config.geminiApiKey;
     if (!apiKey || config.demoMode) {
