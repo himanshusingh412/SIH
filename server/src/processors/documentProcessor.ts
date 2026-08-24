@@ -60,26 +60,36 @@ export class DocumentProcessor {
     const paragraphs = text.split(/\n\s*\n/).filter((p) => p.trim().length > 0);
     const chunks: NormalizedChunk[] = [];
     let currentOffset = 0;
-
-    const paragraphsPerPage = Math.max(1, Math.ceil(paragraphs.length / pageCount));
+    let currentPage = 1;
 
     paragraphs.forEach((p, idx) => {
-      const pageNumber = Math.min(pageCount, Math.floor(idx / paragraphsPerPage) + 1);
-      const startCharIndex = currentOffset;
-      const endCharIndex = startCharIndex + p.length;
-      currentOffset = endCharIndex + 2; // account for newline
+      let cleanParagraph = p.trim();
 
-      let sectionTitle = `Section ${idx + 1}`;
-      const firstLine = p.split('\n')[0].trim();
+      // Parse explicit [Page X] marker if present
+      const pageMatch = cleanParagraph.match(/^\[Page\s+(\d+)\]/i);
+      if (pageMatch) {
+        currentPage = parseInt(pageMatch[1], 10);
+        cleanParagraph = cleanParagraph.replace(/^\[Page\s+\d+\]\s*/i, '').trim();
+      }
+
+      if (!cleanParagraph) return;
+
+      const pageNumber = Math.min(pageCount, Math.max(1, currentPage));
+      const startCharIndex = currentOffset;
+      const endCharIndex = startCharIndex + cleanParagraph.length;
+      currentOffset = endCharIndex + 2;
+
+      let sectionTitle = `Page ${pageNumber} — Section ${idx + 1}`;
+      const firstLine = cleanParagraph.split('\n')[0].trim();
       if (firstLine.length < 60 && !firstLine.endsWith('.')) {
         sectionTitle = firstLine;
       }
 
       chunks.push({
-        chunkIndex: idx + 1,
+        chunkIndex: chunks.length + 1,
         pageNumber,
         sectionTitle,
-        text: p.trim(),
+        text: cleanParagraph,
         startCharIndex,
         endCharIndex,
       });

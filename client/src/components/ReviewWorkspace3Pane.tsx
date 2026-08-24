@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import type { ContentSpineData, GeneratedOutput, OutputType, ValidationReportData } from '../types';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import { cleanPdfText } from '../utils/pdfSanitizer';
 
 const LinkedinIcon = ({ size = 16 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -646,7 +647,7 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
                   📄 {activeTraceability.sourceDoc} (Page {activeTraceability.page})
                 </div>
                 <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)', marginTop: '6px', fontStyle: 'italic' }}>
-                  "{activeTraceability.snippet}"
+                  "{cleanPdfText(activeTraceability.snippet)}"
                 </div>
               </div>
             </div>

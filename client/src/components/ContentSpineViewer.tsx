@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Database, Lock, Unlock, Tag, ArrowRight, BookOpen, Eye, X } from 'lucide-react';
 import type { ContentSpineData, FactItem } from '../types';
+import { cleanPdfText } from '../utils/pdfSanitizer';
 
 interface ContentSpineViewerProps {
   spine: ContentSpineData;
@@ -97,7 +98,7 @@ export const ContentSpineViewer: React.FC<ContentSpineViewerProps> = ({ spine, o
                     </button>
                   </div>
                   <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)', marginTop: '4px' }}>
-                    Source Snippet: "{item.sourceSnippet?.slice(0, 60)}..."
+                    Source Snippet: "{cleanPdfText(item.sourceSnippet || '').slice(0, 60)}..."
                   </div>
                 </div>
 
@@ -197,7 +198,7 @@ export const ContentSpineViewer: React.FC<ContentSpineViewerProps> = ({ spine, o
                     </button>
                   </div>
                   <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)', marginTop: '4px' }}>
-                    Source Snippet: "{item.sourceSnippet?.slice(0, 60)}..."
+                    Source Snippet: "{cleanPdfText(item.sourceSnippet || '').slice(0, 60)}..."
                   </div>
                 </div>
 
@@ -338,7 +339,7 @@ export const ContentSpineViewer: React.FC<ContentSpineViewerProps> = ({ spine, o
                 EXACT SOURCE DOCUMENT SNIPPET (Page {inspectFact.pageNumber || 1})
               </div>
               <div style={{ fontSize: 'var(--font-sm)', color: '#f8fafc', fontStyle: 'italic', marginTop: '8px', lineHeight: '1.6' }}>
-                "{inspectFact.sourceSnippet || 'Extracted snippet from document text.'}"
+                "{cleanPdfText(inspectFact.sourceSnippet || 'Extracted snippet from document text.')}"
               </div>
             </div>
 
