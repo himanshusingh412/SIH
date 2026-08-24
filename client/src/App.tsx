@@ -7,6 +7,7 @@ import { CreativeStudioPage } from './pages/CreativeStudioPage';
 import { AgentsPage } from './pages/AgentsPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { ResumeStudio } from './components/studios/ResumeStudio';
 import { UploadStage } from './components/UploadStage';
 import { ProcessingScreen } from './components/ProcessingScreen';
 import { ContentSpineViewer } from './components/ContentSpineViewer';
@@ -249,6 +250,9 @@ export function App() {
                 spine={spineData}
               />
             )}
+
+            {/* Resume Studio Route */}
+            {route === 'resume-studio' && <ResumeStudio />}
 
             {/* Analytics Route */}
             {route === 'analytics' && <AnalyticsPage />}

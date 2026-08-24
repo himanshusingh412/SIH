@@ -10,6 +10,7 @@ import {
   Bot,
   BarChart3,
   History,
+  FileText,
   FolderKanban,
 } from 'lucide-react';
 
@@ -30,6 +31,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
     { id: 'spine', label: 'Content Spine', icon: Database },
     { id: 'workspace', label: 'Review Workspace', icon: Layers },
     { id: 'creative-studio', label: 'Creative Studio', icon: Mic, badge: 'Multimodal' },
+    { id: 'resume-studio', label: 'Resume Studio', icon: FileText, badge: 'ATS Engine' },
     { id: 'agents', label: 'AI Agents', icon: Bot, badge: 'Knowledge' },
     { id: 'history', label: 'History', icon: History },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },

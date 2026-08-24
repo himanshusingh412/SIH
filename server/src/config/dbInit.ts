@@ -247,6 +247,80 @@ export async function ensureDbSchema() {
         passed BOOLEAN NOT NULL,
         createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
       );`,
+      `CREATE TABLE IF NOT EXISTS Resume (
+        id TEXT PRIMARY KEY,
+        userId TEXT,
+        projectId TEXT,
+        title TEXT NOT NULL,
+        targetRole TEXT,
+        candidateContentSpine TEXT NOT NULL,
+        contactInfo TEXT,
+        template TEXT DEFAULT 'ATS_CLASSIC',
+        atsSafe BOOLEAN DEFAULT 1,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      );`,
+      `CREATE TABLE IF NOT EXISTS ResumeVersion (
+        id TEXT PRIMARY KEY,
+        resumeId TEXT NOT NULL,
+        version INTEGER DEFAULT 1,
+        versionName TEXT DEFAULT 'Version 1',
+        targetJobTitle TEXT,
+        targetCompany TEXT,
+        jobDescriptionId TEXT,
+        atsScore REAL DEFAULT 0.0,
+        scoreBreakdown TEXT,
+        optimizedContent TEXT NOT NULL,
+        changesSummary TEXT,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      );`,
+      `CREATE TABLE IF NOT EXISTS JobDescription (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        company TEXT,
+        rawText TEXT NOT NULL,
+        parsedJobSpine TEXT NOT NULL,
+        requiredSkills TEXT,
+        preferredSkills TEXT,
+        keywords TEXT,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      );`,
+      `CREATE TABLE IF NOT EXISTS ATSScan (
+        id TEXT PRIMARY KEY,
+        resumeId TEXT NOT NULL,
+        resumeVersionId TEXT,
+        jobDescriptionId TEXT,
+        overallScore REAL DEFAULT 0.0,
+        keywordMatchScore REAL DEFAULT 0.0,
+        skillsMatchScore REAL DEFAULT 0.0,
+        experienceMatchScore REAL DEFAULT 0.0,
+        educationMatchScore REAL DEFAULT 0.0,
+        structureScore REAL DEFAULT 0.0,
+        formattingScore REAL DEFAULT 0.0,
+        contactInfoScore REAL DEFAULT 0.0,
+        contentQualityScore REAL DEFAULT 0.0,
+        findings TEXT NOT NULL,
+        missingKeywords TEXT NOT NULL,
+        keywordTable TEXT NOT NULL,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      );`,
+      `CREATE TABLE IF NOT EXISTS CoverLetter (
+        id TEXT PRIMARY KEY,
+        resumeId TEXT NOT NULL,
+        targetJobTitle TEXT NOT NULL,
+        targetCompany TEXT NOT NULL,
+        content TEXT NOT NULL,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      );`,
+      `CREATE TABLE IF NOT EXISTS LinkedInProfile (
+        id TEXT PRIMARY KEY,
+        resumeId TEXT NOT NULL,
+        headline TEXT NOT NULL,
+        aboutSummary TEXT NOT NULL,
+        experienceHighlights TEXT NOT NULL,
+        skills TEXT NOT NULL,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      );`,
     ];
 
     for (const sql of statements) {

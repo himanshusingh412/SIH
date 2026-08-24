@@ -7,6 +7,7 @@ import { rateLimiter, securityHeaders } from './middleware/security';
 import projectRoutes from './routes/projectRoutes';
 import audioRoutes from './routes/audioRoutes';
 import agentRoutes from './routes/agentRoutes';
+import resumeRoutes from './routes/resumeRoutes';
 
 const app = express();
 
@@ -36,6 +37,7 @@ app.get('/api/health', (_req, res) => {
 
 // Mount Routes
 app.use('/api', projectRoutes);
+app.use('/api', resumeRoutes);
 app.use('/api/audio', audioRoutes);
 app.use('/api/agents', agentRoutes);
 

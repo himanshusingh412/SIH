@@ -15,6 +15,7 @@ model User {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   projects  Project[]
+  resumes   Resume[]
 }
 
 model Project {
@@ -39,6 +40,7 @@ model Project {
   dubbingProjects  DubbingProject[]
   mediaAssets      MediaAsset[]
   agents           Agent[]
+  resumes          Resume[]
 
   @@index([userId])
   @@index([status])
@@ -384,3 +386,118 @@ model AgentTest {
 
   @@index([agentId])
 }
+
+// ----------------------------------------------------
+// RESUME INTELLIGENCE & ATS ENGINE MODELS
+// ----------------------------------------------------
+
+model Resume {
+  id                    String            @id @default(uuid())
+  userId                String?
+  user                  User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  projectId             String?
+  project               Project?          @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  title                 String
+  targetRole            String?
+  candidateContentSpine String            // Stringified JSON Candidate Content Spine
+  contactInfo           String?           // Stringified JSON Contact Info
+  template              String            @default("ATS_CLASSIC")
+  atsSafe               Boolean           @default(true)
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  versions              ResumeVersion[]
+  atsScans              ATSScan[]
+  coverLetters          CoverLetter[]
+  linkedInProfiles      LinkedInProfile[]
+
+  @@index([userId])
+  @@index([projectId])
+}
+
+model ResumeVersion {
+  id               String          @id @default(uuid())
+  resumeId         String
+  resume           Resume          @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  version          Int             @default(1)
+  versionName      String          @default("Version 1")
+  targetJobTitle   String?
+  targetCompany    String?
+  jobDescriptionId String?
+  jobDescription   JobDescription? @relation(fields: [jobDescriptionId], references: [id], onDelete: SetNull)
+  atsScore         Float           @default(0.0)
+  scoreBreakdown   String?         // Stringified JSON ATS breakdown
+  optimizedContent String          // Stringified JSON optimized resume structure
+  changesSummary   String?         // JSON list of bullet / section changes
+  createdAt        DateTime        @default(now())
+  atsScans         ATSScan[]
+
+  @@index([resumeId])
+  @@index([jobDescriptionId])
+}
+
+model JobDescription {
+  id               String          @id @default(uuid())
+  title            String
+  company          String?
+  rawText          String
+  parsedJobSpine   String          // Stringified JSON Job Content Spine
+  requiredSkills   String?         // Stringified JSON array
+  preferredSkills  String?         // Stringified JSON array
+  keywords         String?         // Stringified JSON array
+  createdAt        DateTime        @default(now())
+  resumeVersions   ResumeVersion[]
+  atsScans         ATSScan[]
+}
+
+model ATSScan {
+  id                   String          @id @default(uuid())
+  resumeId             String
+  resume               Resume          @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  resumeVersionId      String?
+  resumeVersion        ResumeVersion?  @relation(fields: [resumeVersionId], references: [id], onDelete: SetNull)
+  jobDescriptionId     String?
+  jobDescription       JobDescription? @relation(fields: [jobDescriptionId], references: [id], onDelete: SetNull)
+  overallScore         Float           @default(0.0)
+  keywordMatchScore    Float           @default(0.0)
+  skillsMatchScore     Float           @default(0.0)
+  experienceMatchScore Float           @default(0.0)
+  educationMatchScore  Float           @default(0.0)
+  structureScore       Float           @default(0.0)
+  formattingScore      Float           @default(0.0)
+  contactInfoScore     Float           @default(0.0)
+  contentQualityScore  Float           @default(0.0)
+  findings             String          // Stringified JSON list of findings & penalties
+  missingKeywords      String          // Stringified JSON list of missing keywords
+  keywordTable         String          // Stringified JSON matrix (Keyword, Status, Evidence)
+  createdAt            DateTime        @default(now())
+
+  @@index([resumeId])
+  @@index([resumeVersionId])
+  @@index([jobDescriptionId])
+}
+
+model CoverLetter {
+  id             String    @id @default(uuid())
+  resumeId       String
+  resume         Resume    @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  targetJobTitle String
+  targetCompany  String
+  content        String
+  createdAt      DateTime  @default(now())
+
+  @@index([resumeId])
+}
+
+model LinkedInProfile {
+  id                   String   @id @default(uuid())
+  resumeId             String
+  resume               Resume   @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  headline             String
+  aboutSummary         String
+  experienceHighlights String   // Stringified JSON array
+  skills               String   // Stringified JSON array
+  createdAt            DateTime @default(now())
+
+  @@index([resumeId])
+}
+
