@@ -1,5 +1,5 @@
 import cors from 'cors';
-import express from 'express';
+import express, { Request, Response } from 'express';
 import path from 'path';
 import { config } from './config';
 import { ensureDbSchema } from './config/dbInit';
@@ -39,11 +39,11 @@ app.use(async (_req, _res, next) => {
 // Serve static media uploads
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
-// Health Endpoint (Section 4 & 5 Requirement)
-app.get('/api/health', async (_req, res) => {
+// Health Endpoint Handler
+const healthHandler = async (_req: Request, res: Response) => {
   try {
     await ensureDbSchema();
-    res.json({
+    return res.json({
       success: true,
       service: 'ContentSpine AI',
       status: 'healthy',
@@ -56,7 +56,7 @@ app.get('/api/health', async (_req, res) => {
       timestamp: new Date().toISOString(),
     });
   } catch (err: any) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: {
         code: 'DATABASE_UNAVAILABLE',
@@ -65,24 +65,39 @@ app.get('/api/health', async (_req, res) => {
       timestamp: new Date().toISOString(),
     });
   }
-});
+};
 
-// Gemini/AI Provider Health Endpoint (Section 10 Requirement)
-app.get('/api/health/ai', (_req, res) => {
-  res.json({
+// AI Provider Health Endpoint Handler
+const aiHealthHandler = (_req: Request, res: Response) => {
+  return res.json({
     success: true,
     provider: config.aiProvider || 'gemini',
     model: config.aiModel || 'gemini-3.1-flash-lite',
     demoMode: config.demoMode,
   });
-});
+};
 
-// Mount Routes
+// Support both /api/health and /health for Vercel routing compatibility
+app.get('/api/health', healthHandler);
+app.get('/health', healthHandler);
+app.get('/api/health/ai', aiHealthHandler);
+app.get('/health/ai', aiHealthHandler);
+
+// Mount Routes under both /api and root / for Vercel serverless rewrite compatibility
 app.use('/api', projectRoutes);
+app.use('/', projectRoutes);
+
 app.use('/api', resumeRoutes);
+app.use('/', resumeRoutes);
+
 app.use('/api/audio', audioRoutes);
+app.use('/audio', audioRoutes);
+
 app.use('/api/agents', agentRoutes);
+app.use('/agents', agentRoutes);
+
 app.use('/api/media', mediaRoutes);
+app.use('/media', mediaRoutes);
 
 // Global Error Handler
 app.use(errorHandler);
