@@ -55,7 +55,7 @@ export class AgentService {
     const agent = await this.getOrCreateAgent(projectId);
 
     // Fetch Content Spine with facts & source references
-    const spine = await prisma.contentSpine.findFirst({
+    let spine = await prisma.contentSpine.findFirst({
       where: { projectId },
       include: {
         facts: {
@@ -70,6 +70,24 @@ export class AgentService {
         entities: true,
       },
     });
+
+    if ((!spine || !spine.facts || spine.facts.length === 0) && (projectId === 'demo-project' || projectId === 'default')) {
+      spine = await prisma.contentSpine.findFirst({
+        orderBy: { createdAt: 'desc' },
+        include: {
+          facts: {
+            include: {
+              references: {
+                include: {
+                  sourceDocument: true,
+                },
+              },
+            },
+          },
+          entities: true,
+        },
+      });
+    }
 
     // Requirement 3: If no verified facts/source contents exist for this project
     if (!spine || !spine.facts || spine.facts.length === 0) {
