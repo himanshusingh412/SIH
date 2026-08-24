@@ -8,10 +8,19 @@ import { sendSuccess, sendError } from '../utils/response';
 
 const prisma = new PrismaClient();
 
-// Configure isolated upload storage
-const UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'media');
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+import os from 'os';
+
+// Configure isolated upload storage safely for serverless environments
+const UPLOAD_DIR = process.env.VERCEL
+  ? path.join(os.tmpdir(), 'uploads', 'media')
+  : path.join(process.cwd(), 'uploads', 'media');
+
+try {
+  if (!fs.existsSync(UPLOAD_DIR)) {
+    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+  }
+} catch (e: any) {
+  console.warn('⚠️ Media upload directory creation warning:', e?.message || e);
 }
 
 export const uploadMiddleware = multer({
