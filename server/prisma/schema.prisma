@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -20,22 +20,25 @@ model User {
 }
 
 model Project {
-  id               String            @id @default(uuid())
-  userId           String?
-  user             User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
-  title            String
-  description      String?
-  status           String            @default("DRAFT") // DRAFT, INGESTED, GENERATED, VALIDATED
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  sourceDocuments  SourceDocument[]
-  contentSpines    ContentSpine[]
-  outputs          Output[]
-  validationResults ValidationResult[]
-  generationJobs   GenerationJob[]
-  audienceProfiles AudienceProfile[]
-  agents           Agent[]
-  resumes          Resume[]
+  id                   String               @id @default(uuid())
+  userId               String?
+  user                 User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  title                String
+  description          String?
+  status               String               @default("DRAFT") // DRAFT, INGESTED, GENERATED, VALIDATED
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  sourceDocuments      SourceDocument[]
+  contentSpines        ContentSpine[]
+  outputs              Output[]
+  validationResults    ValidationResult[]
+  generationJobs       GenerationJob[]
+  audienceProfiles     AudienceProfile[]
+  agents               Agent[]
+  resumes              Resume[]
+  conversations        Conversation[]
+  generationActivities GenerationActivity[]
+  exportHistories      ExportHistory[]
 
   @@index([userId])
   @@index([status])
@@ -356,5 +359,79 @@ model LinkedInProfile {
   createdAt            DateTime @default(now())
 
   @@index([resumeId])
+}
+
+// ----------------------------------------------------
+// PERSISTENT HISTORY & CONVERSATION MODELS
+// ----------------------------------------------------
+
+model Conversation {
+  id                   String               @id @default(uuid())
+  projectId            String
+  project              Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title                String
+  provider             String?              @default("gemini")
+  model                String?              @default("gemini-3.1-flash-lite")
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  messages             Message[]
+  generationActivities GenerationActivity[]
+  exportHistories      ExportHistory[]
+
+  @@index([projectId])
+  @@index([updatedAt])
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String       // user, assistant, system
+  content        String
+  provider       String?
+  model          String?
+  sources        String?      // JSON stringified array of sources: [{ documentId, page, title, snippet }]
+  grounded       Boolean      @default(true)
+  isError        Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId])
+  @@index([createdAt])
+}
+
+model GenerationActivity {
+  id                String        @id @default(uuid())
+  projectId         String
+  project           Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  conversationId    String?
+  conversation      Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  provider          String
+  model             String?
+  status            String        // SUCCESS, FAILED, RATE_LIMITED, VALIDATION_FAILED
+  latencyMs         Int?
+  inputTokens       Int?
+  outputTokens      Int?
+  errorCode         String?
+  retryAfterSeconds Int?
+  createdAt         DateTime      @default(now())
+
+  @@index([projectId])
+  @@index([createdAt])
+  @@index([conversationId])
+}
+
+model ExportHistory {
+  id             String        @id @default(uuid())
+  projectId      String
+  project        Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  conversationId String?
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  format         String        // PDF, DOCX, PPTX, JSON, CSV, Markdown, HTML, XML, YAML
+  filename       String
+  createdAt      DateTime      @default(now())
+
+  @@index([projectId])
+  @@index([createdAt])
+  @@index([conversationId])
 }
 

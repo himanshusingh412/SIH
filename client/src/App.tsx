@@ -6,6 +6,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { AgentsPage } from './pages/AgentsPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { HistoryPage } from './pages/HistoryPage';
 import { ResumeStudio } from './components/studios/ResumeStudio';
 import { UploadStage } from './components/UploadStage';
 import { ProcessingScreen } from './components/ProcessingScreen';
@@ -20,6 +21,7 @@ import type { AudienceProfile, InputCategory, OutputType } from './types';
 export function App() {
   const [route, setRoute] = useState<string>('dashboard');
   const [selectedProvider, setSelectedProvider] = useState<string>('gemini');
+  const [activeConversationId, setActiveConversationId] = useState<string | undefined>(undefined);
   const [showExportModal, setShowExportModal] = useState<boolean>(false);
   const [autoFixAttempt, setAutoFixAttempt] = useState<number>(0);
   const [selectedOutputTypes, setSelectedOutputTypes] = useState<OutputType[]>([
@@ -232,8 +234,8 @@ export function App() {
           />
 
           <main style={{ flex: 1, overflowY: 'auto' }}>
-            {/* Screen 1: Dashboard / Projects / History */}
-            {(route === 'dashboard' || route === 'projects' || route === 'history') && (
+            {/* Screen 1: Dashboard / Projects */}
+            {(route === 'dashboard' || route === 'projects') && (
               <DashboardPage
                 projects={projectData ? [projectData] : []}
                 onStartNew={() => setRoute('new-transformation')}
@@ -241,6 +243,20 @@ export function App() {
               />
             )}
 
+            {/* Persistent History Route */}
+            {route === 'history' && (
+              <HistoryPage
+                projectId={projectData?.id || 'demo-project'}
+                onOpenConversation={(convId) => {
+                  setActiveConversationId(convId);
+                  setRoute('agents');
+                }}
+                onStartNewConversation={() => {
+                  setActiveConversationId(undefined);
+                  setRoute('agents');
+                }}
+              />
+            )}
 
             {/* AI Agents Route */}
             {route === 'agents' && (
@@ -248,6 +264,8 @@ export function App() {
                 projectId={projectData?.id || 'demo-project'}
                 spine={spineData}
                 selectedProvider={selectedProvider}
+                activeConversationId={activeConversationId}
+                onConversationChange={(convId) => setActiveConversationId(convId)}
               />
             )}
 

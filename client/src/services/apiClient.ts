@@ -253,4 +253,69 @@ export const apiClient = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ projectId, agentId: agentId || 'demo-agent-id', testCases, provider }),
     }),
+
+  // Persistent History & Conversation Endpoints (Neon PostgreSQL)
+  getConversations: (projectId: string, search?: string) =>
+    request<Array<{
+      id: string;
+      projectId: string;
+      title: string;
+      provider: string;
+      model: string;
+      lastMessage: string | null;
+      createdAt: string;
+      updatedAt: string;
+    }>>(`/conversations?projectId=${encodeURIComponent(projectId)}${search ? `&search=${encodeURIComponent(search)}` : ''}`),
+
+  getConversation: (id: string) =>
+    request<{
+      conversation: {
+        id: string;
+        projectId: string;
+        title: string;
+        provider: string;
+        model: string;
+        createdAt: string;
+        updatedAt: string;
+      };
+      messages: Array<{
+        id: string;
+        conversationId: string;
+        role: 'USER' | 'ASSISTANT' | 'SYSTEM';
+        content: string;
+        provider?: string;
+        model?: string;
+        sources?: Array<{ documentId: string; page: number; title: string; snippet: string }>;
+        grounded?: boolean;
+        isError?: boolean;
+        createdAt: string;
+      }>;
+    }>(`/conversations/${id}`),
+
+  createConversation: (projectId: string, title?: string, provider = 'gemini', model = 'gemini-3.1-flash-lite') =>
+    request<{
+      id: string;
+      projectId: string;
+      title: string;
+      provider: string;
+      model: string;
+      createdAt: string;
+      updatedAt: string;
+    }>('/conversations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId, title, provider, model }),
+    }),
+
+  renameConversation: (id: string, title: string) =>
+    request<{ id: string; title: string; updatedAt: string }>(`/conversations/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title }),
+    }),
+
+  deleteConversation: (id: string) =>
+    request<{ message: string }>(`/conversations/${id}`, {
+      method: 'DELETE',
+    }),
 };

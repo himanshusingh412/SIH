@@ -23,6 +23,8 @@ interface AgentsPageProps {
   projectId: string;
   spine: ContentSpineData | null;
   selectedProvider?: string;
+  activeConversationId?: string;
+  onConversationChange?: (id: string) => void;
 }
 
 interface ChatMessage {
@@ -37,13 +39,64 @@ interface ChatMessage {
   createdAt: string;
 }
 
-export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine, selectedProvider = 'gemini' }) => {
+export const AgentsPage: React.FC<AgentsPageProps> = ({
+  projectId,
+  spine,
+  selectedProvider = 'gemini',
+  activeConversationId,
+  onConversationChange,
+}) => {
   const [query, setQuery] = useState<string>('');
   const [isAsking, setIsAsking] = useState<boolean>(false);
-  const [conversationId, setConversationId] = useState<string | undefined>(undefined);
+  const [conversationId, setConversationId] = useState<string | undefined>(activeConversationId);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [expandedFactId, setExpandedFactId] = useState<string | null>(null);
   const [voiceNotice, setVoiceNotice] = useState<boolean>(false);
+
+  // Load persistent history from Neon PostgreSQL (Requirements 14, 18, 37, 38)
+  useEffect(() => {
+    if (activeConversationId) {
+      setConversationId(activeConversationId);
+      loadConversationHistory(activeConversationId);
+    } else {
+      loadMostRecentConversation();
+    }
+  }, [activeConversationId, projectId]);
+
+  const loadMostRecentConversation = async () => {
+    try {
+      const list = await apiClient.getConversations(projectId || 'demo-project');
+      if (list && list.length > 0) {
+        setConversationId(list[0].id);
+        if (onConversationChange) onConversationChange(list[0].id);
+        loadConversationHistory(list[0].id);
+      }
+    } catch {
+      // Keep welcome state if no history exists yet
+    }
+  };
+
+  const loadConversationHistory = async (convId: string) => {
+    try {
+      const data = await apiClient.getConversation(convId);
+      if (data && data.messages && data.messages.length > 0) {
+        const mapped: ChatMessage[] = data.messages.map((m) => ({
+          id: m.id,
+          role: m.role as 'USER' | 'ASSISTANT',
+          content: m.content,
+          provider: m.provider || selectedProvider,
+          model: m.model || (selectedProvider === 'gemini' ? 'gemini-3.1-flash-lite' : 'gpt-4o'),
+          sources: m.sources || [],
+          grounded: m.grounded !== false,
+          isError: m.isError || false,
+          createdAt: new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        }));
+        setMessages(mapped);
+      }
+    } catch (err) {
+      console.warn('Could not load conversation history from Neon:', err);
+    }
+  };
 
   // Rate limit state & countdown tracker (Requirements 4, 7, 16)
   const [rateLimitInfo, setRateLimitInfo] = useState<{
@@ -139,6 +192,7 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine, select
       if (res && res.answer) {
         if (res.conversationId) {
           setConversationId(res.conversationId);
+          if (onConversationChange) onConversationChange(res.conversationId);
         }
 
         // Successful request clears any previous rate limit state

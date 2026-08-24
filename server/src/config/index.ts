@@ -3,7 +3,10 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const dbUrl = process.env.DATABASE_URL || (process.env.VERCEL ? 'file:/tmp/dev.db' : 'file:./dev.db');
+const dbUrl =
+  process.env.DATABASE_URL ||
+  process.env.NEON_DATABASE_URL ||
+  'postgresql://postgres:postgres@localhost:5432/contentspine_db';
 
 export const config = {
   port: process.env.PORT || 5001,
@@ -18,10 +21,19 @@ export const config = {
   geminiApiKey: process.env.AI_API_KEY || process.env.GEMINI_API_KEY || '',
 };
 
-export const prisma = new PrismaClient({
-  datasources: {
-    db: {
-      url: dbUrl,
+// Singleton PrismaClient reuse for serverless connection safety (Requirement 28)
+const globalForPrisma = global as unknown as { prisma?: PrismaClient };
+
+export const prisma =
+  globalForPrisma.prisma ||
+  new PrismaClient({
+    datasources: {
+      db: {
+        url: dbUrl,
+      },
     },
-  },
-});
+  });
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForPrisma.prisma = prisma;
+}

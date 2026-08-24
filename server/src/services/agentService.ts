@@ -1,6 +1,7 @@
 import { prisma, config } from '../config';
 import { getAIProvider } from '../ai/provider';
 import { ProjectService } from './projectService';
+import { historyService } from './historyService';
 
 const projectService = new ProjectService();
 
@@ -129,42 +130,80 @@ export class AgentService {
       }
     }
 
+    const selectedProvider = providerName || config.aiProvider || 'gemini';
+    const activeModel =
+      selectedProvider.toLowerCase() === 'gemini'
+        ? config.aiModel || 'gemini-3.1-flash-lite'
+        : selectedProvider.toLowerCase() === 'openai'
+        ? config.openaiModel || 'gpt-4o'
+        : 'Demo Mode';
+
+    // Session / Conversation Memory Management in Neon (Requirement 6, 8, 10)
+    let activeConversation;
+    if (conversationId) {
+      const existing = await historyService.getConversationById(conversationId);
+      if (existing && existing.conversation) {
+        activeConversation = existing.conversation;
+      }
+    }
+
+    if (!activeConversation) {
+      activeConversation = await historyService.getOrCreateActiveConversation(
+        projectId,
+        selectedProvider,
+        activeModel
+      );
+    }
+
+    const currentConversationId = activeConversation.id;
+
+    // Requirement 11: Auto-generate title from 1st user query if title is default
+    await historyService.autoUpdateConversationTitleFromMessage(currentConversationId, message.trim());
+
+    // Requirement 9: Save USER message to Neon BEFORE calling Gemini API
+    const userMsgRecord = await historyService.saveMessage({
+      conversationId: currentConversationId,
+      role: 'USER',
+      content: message.trim(),
+      provider: selectedProvider,
+      model: activeModel,
+    });
+
     // Requirement 22 & 23: If no verified facts/source contents exist for this project, DO NOT call Gemini API!
     if (!spine || !spine.facts || spine.facts.length === 0) {
+      // Save assistant message to Neon stating zero facts available
+      const noFactAns = 'Not in source. No verified Content Spine facts are currently available. Please upload or ingest a source document first.';
+      const asstRecord = await historyService.saveMessage({
+        conversationId: currentConversationId,
+        role: 'ASSISTANT',
+        content: noFactAns,
+        provider: selectedProvider,
+        model: activeModel,
+        sources: [],
+        grounded: true,
+      });
+
       return {
         success: false,
         error: {
           code: 'NO_KNOWLEDGE_CONTEXT',
-          message: 'Not in source. No verified Content Spine facts are currently available. Please upload or ingest a source document first.',
+          message: noFactAns,
+        },
+        data: {
+          messageId: asstRecord.id,
+          conversationId: currentConversationId,
+          answer: noFactAns,
+          provider: selectedProvider,
+          model: activeModel,
+          sources: [],
+          grounded: true,
         },
       };
     }
 
-    // Session / Conversation Memory Management
-    let currentSessionId = conversationId;
-    if (!currentSessionId) {
-      const newSession = await prisma.agentSession.create({
-        data: { agentId: agent.id },
-      });
-      currentSessionId = newSession.id;
-    }
-
-    // Fetch conversation history for context (up to 6 recent messages)
-    const historyMessages = await prisma.agentMessage.findMany({
-      where: { sessionId: currentSessionId },
-      orderBy: { createdAt: 'desc' },
-      take: 6,
-    });
-    historyMessages.reverse();
-
-    // Save user message to database
-    await prisma.agentMessage.create({
-      data: {
-        sessionId: currentSessionId,
-        role: 'USER',
-        content: message.trim(),
-      },
-    });
+    // Fetch recent conversation history from Neon for multi-turn context (Requirement 18, 19)
+    const convDetails = await historyService.getConversationById(currentConversationId);
+    const historyMessages = (convDetails?.messages || []).slice(-15);
 
     // Relevance Retrieval (Requirement 6)
     const normalizedQuery = message.toLowerCase();
@@ -250,10 +289,10 @@ USER QUESTION: "${message}"
 ============================================================
 Answer cleanly and accurately using ONLY the facts above. If not present in the facts, respond: "Not in source."`;
 
-    const selectedProvider = providerName || config.aiProvider || 'gemini';
     const aiProvider = getAIProvider(selectedProvider);
 
     let rawAnswer = '';
+    const startTime = Date.now();
     try {
       if (typeof (aiProvider as any).generateText === 'function') {
         rawAnswer = await (aiProvider as any).generateText(fullPrompt);
@@ -277,16 +316,41 @@ Answer cleanly and accurately using ONLY the facts above. If not present in the 
         ).then((r) => r.content);
       }
     } catch (err: any) {
+      const latencyMs = Date.now() - startTime;
       if (err.code === 'GEMINI_RATE_LIMITED' || err.status === 429) {
+        // Requirement 21: Record RATE_LIMITED activity in Neon without fake assistant response
+        await historyService.recordGenerationActivity({
+          projectId,
+          conversationId: currentConversationId,
+          provider: selectedProvider,
+          model: activeModel,
+          status: 'RATE_LIMITED',
+          latencyMs,
+          errorCode: 'GEMINI_RATE_LIMITED',
+          retryAfterSeconds: err.retryAfterSeconds || 45,
+        });
+
         const rateErr: any = new Error(err.message || 'Gemini is temporarily rate-limited.');
         rateErr.code = 'GEMINI_RATE_LIMITED';
         rateErr.status = 429;
         rateErr.retryAfterSeconds = err.retryAfterSeconds || 45;
         throw rateErr;
       }
+
+      await historyService.recordGenerationActivity({
+        projectId,
+        conversationId: currentConversationId,
+        provider: selectedProvider,
+        model: activeModel,
+        status: 'FAILED',
+        latencyMs,
+        errorCode: err.message || 'GENERATION_FAILED',
+      });
+
       throw new Error(`Gemini could not answer right now. (${err.message || 'API request failed'})`);
     }
 
+    const latencyMs = Date.now() - startTime;
     let finalAnswer = rawAnswer ? rawAnswer.trim() : 'Not in source.';
 
     // Grounding Check
@@ -301,39 +365,43 @@ Answer cleanly and accurately using ONLY the facts above. If not present in the 
       finalAnswer = 'Not in source.';
     }
 
-    const toolTrace = [
-      { tool: 'searchContentSpine', params: { query: message }, result: `${relevantFacts.length} facts retrieved` },
-      { tool: 'verifyFactLock', params: { factCount: relevantFacts.length }, result: 'Passed' },
-    ];
-
-    // Save assistant response to DB
-    const assistantMsg = await prisma.agentMessage.create({
-      data: {
-        sessionId: currentSessionId,
-        role: 'ASSISTANT',
-        content: finalAnswer,
-        toolCalls: JSON.stringify(toolTrace),
-      },
+    // Save ASSISTANT message to Neon database with sources & grounding (Requirement 8, 20, 24)
+    const assistantMsgRecord = await historyService.saveMessage({
+      conversationId: currentConversationId,
+      role: 'ASSISTANT',
+      content: finalAnswer,
+      provider: selectedProvider,
+      model: activeModel,
+      sources,
+      grounded: !isNotInSource,
+      isError: false,
     });
 
-    const activeModel =
-      selectedProvider.toLowerCase() === 'gemini'
-        ? config.aiModel || 'gemini-3.1-flash-lite'
-        : selectedProvider.toLowerCase() === 'openai'
-        ? config.openaiModel || 'gpt-4o'
-        : 'Demo / Testing Only';
+    // Record Generation Activity in Neon
+    await historyService.recordGenerationActivity({
+      projectId,
+      conversationId: currentConversationId,
+      provider: selectedProvider,
+      model: activeModel,
+      status: 'SUCCESS',
+      latencyMs,
+    });
 
     return {
       success: true,
       data: {
-        messageId: assistantMsg.id,
-        conversationId: currentSessionId,
+        messageId: assistantMsgRecord.id,
+        conversationId: currentConversationId,
+        userMessageId: userMsgRecord.id,
         answer: finalAnswer,
         provider: selectedProvider,
         model: activeModel,
-        sources: isNotInSource ? [] : sources,
-        grounded: true,
-        toolCalls: toolTrace,
+        sources,
+        grounded: !isNotInSource,
+        toolCalls: [
+          { tool: 'searchContentSpine', params: { query: message }, result: `${relevantFacts.length} facts retrieved` },
+          { tool: 'verifyFactLock', params: { factCount: relevantFacts.length }, result: 'Passed' },
+        ],
       },
     };
   }

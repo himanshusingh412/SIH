@@ -7,8 +7,10 @@ import { errorHandler, requestLogger } from './middleware/errorHandler';
 import { rateLimiter, securityHeaders } from './middleware/security';
 import agentRoutes from './routes/agentRoutes';
 import aiProviderRoutes from './routes/aiProviderRoutes';
+import historyRoutes from './routes/historyRoutes';
 import projectRoutes from './routes/projectRoutes';
 import resumeRoutes from './routes/resumeRoutes';
+import { prisma } from './config';
 
 const app = express();
 
@@ -38,12 +40,13 @@ app.use(async (_req, _res, next) => {
 // Serve static media uploads
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
-// Health Endpoint Handler
+// Health Endpoint Handler (Requirement 40)
 const healthHandler = async (_req: Request, res: Response) => {
   try {
-    await ensureDbSchema();
+    await prisma.$queryRawUnsafe('SELECT 1');
     return res.json({
       success: true,
+      database: 'connected',
       service: 'ContentSpine AI',
       status: 'healthy',
       environment: process.env.NODE_ENV || 'production',
@@ -54,8 +57,9 @@ const healthHandler = async (_req: Request, res: Response) => {
       timestamp: new Date().toISOString(),
     });
   } catch (err: any) {
-    return res.status(500).json({
+    return res.status(503).json({
       success: false,
+      database: 'unavailable',
       error: {
         code: 'DATABASE_UNAVAILABLE',
         message: 'The database is temporarily unavailable.',
@@ -87,6 +91,9 @@ app.use('/ai', aiProviderRoutes);
 
 app.use('/api/agents', agentRoutes);
 app.use('/agents', agentRoutes);
+
+app.use('/api', historyRoutes);
+app.use('/', historyRoutes);
 
 app.use('/api', resumeRoutes);
 app.use('/', resumeRoutes);

@@ -321,6 +321,49 @@ export async function ensureDbSchema() {
         skills TEXT NOT NULL,
         createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
       );`,
+      `CREATE TABLE IF NOT EXISTS Conversation (
+        id TEXT PRIMARY KEY,
+        projectId TEXT NOT NULL,
+        title TEXT NOT NULL,
+        provider TEXT DEFAULT 'gemini',
+        model TEXT DEFAULT 'gemini-3.1-flash-lite',
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      );`,
+      `CREATE TABLE IF NOT EXISTS Message (
+        id TEXT PRIMARY KEY,
+        conversationId TEXT NOT NULL,
+        role TEXT NOT NULL,
+        content TEXT NOT NULL,
+        provider TEXT,
+        model TEXT,
+        sources TEXT,
+        grounded BOOLEAN DEFAULT 1,
+        isError BOOLEAN DEFAULT 0,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      );`,
+      `CREATE TABLE IF NOT EXISTS GenerationActivity (
+        id TEXT PRIMARY KEY,
+        projectId TEXT NOT NULL,
+        conversationId TEXT,
+        provider TEXT NOT NULL,
+        model TEXT,
+        status TEXT NOT NULL,
+        latencyMs INTEGER,
+        inputTokens INTEGER,
+        outputTokens INTEGER,
+        errorCode TEXT,
+        retryAfterSeconds INTEGER,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      );`,
+      `CREATE TABLE IF NOT EXISTS ExportHistory (
+        id TEXT PRIMARY KEY,
+        projectId TEXT NOT NULL,
+        conversationId TEXT,
+        format TEXT NOT NULL,
+        filename TEXT NOT NULL,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      );`,
     ];
 
     for (const sql of statements) {
