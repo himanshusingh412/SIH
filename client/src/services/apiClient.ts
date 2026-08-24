@@ -1,6 +1,10 @@
 import type { AudienceProfile, InputCategory, OutputType } from '../types';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api';
+const API_BASE =
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.PROD || (typeof window !== 'undefined' && window.location.hostname !== 'localhost')
+    ? '/api'
+    : 'http://localhost:5001/api');
 
 export class ApiError extends Error {
   statusCode: number;
@@ -15,8 +19,11 @@ export class ApiError extends Error {
 }
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${cleanEndpoint}`;
+
   try {
-    const res = await fetch(`${API_BASE}${endpoint}`, {
+    const res = await fetch(url, {
       ...options,
       headers: {
         ...(options.headers || {}),
@@ -55,8 +62,9 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 }
 
 export const apiClient = {
-  // Health
-  checkHealth: () => request<{ status: string; platform: string }>('/health'),
+  // Health Check
+  checkHealth: () => request<{ success: boolean; service: string; status: string; providers?: any }>('/health'),
+  checkAiHealth: () => request<{ success: boolean; provider: string; model: string; demoMode: boolean }>('/health/ai'),
 
   // Projects
   listProjects: () => request<{ projects: any[] }>('/projects'),

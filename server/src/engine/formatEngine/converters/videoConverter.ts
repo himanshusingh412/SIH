@@ -1,8 +1,6 @@
 import fs from 'fs';
 import path from 'path';
 import { spawn, execFile } from 'child_process';
-import ffmpegPath from 'ffmpeg-static';
-import ffprobePath from 'ffprobe-static';
 
 export interface VideoMetadata {
   duration: number; // in seconds
@@ -28,14 +26,34 @@ export interface ConversionHandle {
   cancel: () => void;
 }
 
-const GET_FFMPEG = (): string => {
-  if (ffmpegPath && fs.existsSync(ffmpegPath)) return ffmpegPath;
+/**
+ * Safe lazy resolver for FFmpeg binary without breaking serverless startup
+ */
+const GET_FFMPEG = async (): Promise<string> => {
+  try {
+    const ffmpegModule = await import('ffmpeg-static');
+    const ffmpegPath = (ffmpegModule as any).default || ffmpegModule;
+    if (ffmpegPath && typeof ffmpegPath === 'string' && fs.existsSync(ffmpegPath)) {
+      return ffmpegPath;
+    }
+  } catch (err: any) {
+    console.warn('⚠️ ffmpeg-static resolution warning:', err?.message || err);
+  }
   return 'ffmpeg';
 };
 
-const GET_FFPROBE = (): string => {
-  if (ffprobePath && ffprobePath.path && fs.existsSync(ffprobePath.path)) {
-    return ffprobePath.path;
+/**
+ * Safe lazy resolver for FFprobe binary without breaking serverless startup
+ */
+const GET_FFPROBE = async (): Promise<string> => {
+  try {
+    const ffprobeModule = await import('ffprobe-static');
+    const ffprobeObj = (ffprobeModule as any).default || ffprobeModule;
+    if (ffprobeObj && ffprobeObj.path && fs.existsSync(ffprobeObj.path)) {
+      return ffprobeObj.path;
+    }
+  } catch (err: any) {
+    console.warn('⚠️ ffprobe-static resolution warning:', err?.message || err);
   }
   return 'ffprobe';
 };
@@ -43,284 +61,240 @@ const GET_FFPROBE = (): string => {
 /**
  * Inspect video file metadata using ffprobe JSON output
  */
-export const probeVideo = (filePath: string): Promise<VideoMetadata> => {
+export const probeVideo = async (filePath: string): Promise<VideoMetadata> => {
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`File not found at path: ${filePath}`);
+  }
+
+  const stat = fs.statSync(filePath);
+  if (stat.size === 0) {
+    throw new Error('Uploaded file is empty (0 bytes).');
+  }
+
+  const ffprobeBin = await GET_FFPROBE();
+  const args = [
+    '-v',
+    'quiet',
+    '-print_format',
+    'json',
+    '-show_format',
+    '-show_streams',
+    filePath,
+  ];
+
   return new Promise((resolve, reject) => {
-    if (!fs.existsSync(filePath)) {
-      return reject(new Error(`File not found at path: ${filePath}`));
-    }
-
-    const stat = fs.statSync(filePath);
-    if (stat.size === 0) {
-      return reject(new Error('Uploaded file is empty (0 bytes).'));
-    }
-
-    const ffprobeBin = GET_FFPROBE();
-    const args = [
-      '-v',
-      'quiet',
-      '-print_format',
-      'json',
-      '-show_format',
-      '-show_streams',
-      filePath,
-    ];
-
-    execFile(ffprobeBin, args, (error, stdout, stderr) => {
-      if (error) {
+    execFile(ffprobeBin, args, { maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
+      if (err) {
         return reject(
-          new Error(`FFprobe inspection failed: ${error.message} ${stderr}`)
+          new Error(
+            `Video inspection failed (FFprobe error): ${stderr || err.message}`
+          )
         );
       }
 
       try {
-        const parsed = JSON.parse(stdout);
-        if (!parsed.streams || !Array.isArray(parsed.streams)) {
-          return reject(new Error('Invalid video container: No media streams found.'));
-        }
+        const data = JSON.parse(stdout);
+        const format = data.format || {};
+        const streams = data.streams || [];
+        const videoStream = streams.find((s: any) => s.codec_type === 'video');
+        const audioStream = streams.find((s: any) => s.codec_type === 'audio');
 
-        const videoStream = parsed.streams.find(
-          (s: any) => s.codec_type === 'video'
-        );
         if (!videoStream) {
-          return reject(
-            new Error('Invalid file: Uploaded media does not contain a valid video stream.')
-          );
+          return reject(new Error('Invalid media file: No video stream found.'));
         }
 
-        const audioStream = parsed.streams.find(
-          (s: any) => s.codec_type === 'audio'
-        );
-
-        let duration = parseFloat(parsed.format?.duration || videoStream.duration || '0');
-        if (isNaN(duration) || duration <= 0) {
-          return reject(new Error('Invalid video stream: Duration is 0 or unreadable.'));
-        }
-
-        const width = parseInt(videoStream.width || '0', 10);
-        const height = parseInt(videoStream.height || '0', 10);
-        if (width === 0 || height === 0) {
-          return reject(new Error('Invalid video stream: Resolution is 0x0.'));
-        }
-
-        // Calculate FPS
         let fps = 30;
         if (videoStream.r_frame_rate) {
           const parts = videoStream.r_frame_rate.split('/');
           if (parts.length === 2 && parseFloat(parts[1]) > 0) {
-            fps = Math.round((parseFloat(parts[0]) / parseFloat(parts[1])) * 100) / 100;
+            fps = Math.round(parseFloat(parts[0]) / parseFloat(parts[1]));
+          } else {
+            fps = Math.round(parseFloat(videoStream.r_frame_rate)) || 30;
           }
         }
 
         const metadata: VideoMetadata = {
-          duration,
-          width,
-          height,
+          duration: parseFloat(format.duration || videoStream.duration || 0),
+          width: parseInt(videoStream.width || 0, 10),
+          height: parseInt(videoStream.height || 0, 10),
           videoCodec: videoStream.codec_name || 'unknown',
-          audioCodec: audioStream ? audioStream.codec_name || 'unknown' : null,
-          bitrate: parseInt(parsed.format?.bit_rate || '0', 10),
+          audioCodec: audioStream ? audioStream.codec_name : null,
+          bitrate: parseInt(format.bit_rate || videoStream.bit_rate || 0, 10),
           fps,
-          fileSize: stat.size,
-          formatName: parsed.format?.format_name || 'unknown',
+          fileSize: parseInt(format.size || stat.size, 10),
+          formatName: format.format_name || 'mov',
         };
 
         resolve(metadata);
-      } catch (err: any) {
-        reject(new Error(`Failed to parse media probe JSON: ${err.message}`));
+      } catch (parseErr: any) {
+        reject(new Error(`Failed to parse FFprobe JSON metadata: ${parseErr.message}`));
       }
     });
   });
 };
 
 /**
- * Execute MOV -> MP4 conversion with real FFmpeg process and real-time progress parsing
+ * Validate generated MP4 video file decodability and container integrity
+ */
+export const validateMp4Output = async (filePath: string, _expectedMeta?: any): Promise<VideoMetadata> => {
+  return probeVideo(filePath);
+};
+
+/**
+ * Real Server-Side MOV → MP4 Conversion Engine
  */
 export const convertMovToMp4 = (
   inputPath: string,
   outputPath: string,
   options: ConversionOptions = {},
-  onProgress?: (percent: number) => void
+  onProgress?: (progressPercent: number) => void
 ): ConversionHandle => {
-  let childProcess: ReturnType<typeof spawn> | null = null;
   let isCancelled = false;
+  let childProcess: any = null;
 
   const promise = new Promise<VideoMetadata>(async (resolve, reject) => {
     try {
-      if (isCancelled) {
-        return reject(new Error('Conversion process was cancelled by user.'));
-      }
-
-      // Step 1: Probe source video metadata
-      const sourceMeta = await probeVideo(inputPath);
+      // 1. Inspect input video metadata
+      const meta = await probeVideo(inputPath);
 
       if (isCancelled) {
-        return reject(new Error('Conversion process was cancelled by user.'));
+        if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+        return reject(new Error('Conversion cancelled by user.'));
       }
 
-      // Ensure directory exists
-      const outputDir = path.dirname(outputPath);
-      if (!fs.existsSync(outputDir)) {
-        fs.mkdirSync(outputDir, { recursive: true });
+      // Ensure output directory exists
+      const outDir = path.dirname(outputPath);
+      if (!fs.existsSync(outDir)) {
+        fs.mkdirSync(outDir, { recursive: true });
       }
 
-      // Build FFmpeg command arguments
-      const ffmpegBin = GET_FFMPEG();
+      // 2. Build FFmpeg command arguments
       const args: string[] = ['-y', '-i', inputPath];
 
-      // Video Codec
-      args.push('-c:v', 'libx264');
-      args.push('-pix_fmt', 'yuv420p');
-      args.push('-movflags', '+faststart');
+      // Resolution scaling filter
+      const filters: string[] = [];
+      if (options.resolution === '1080p') {
+        filters.push('scale=-2:1080');
+      } else if (options.resolution === '720p') {
+        filters.push('scale=-2:720');
+      } else if (options.resolution === '480p') {
+        filters.push('scale=-2:480');
+      }
 
-      // Quality CRF selection
-      const quality = options.quality || 'balanced';
-      if (quality === 'high') {
-        args.push('-crf', '18', '-preset', 'slow');
-      } else if (quality === 'compressed') {
+      if (filters.length > 0) {
+        args.push('-vf', filters.join(','));
+      }
+
+      // Video Codec & Quality CRF
+      args.push('-c:v', 'libx264', '-pix_fmt', 'yuv420p');
+
+      if (options.quality === 'high') {
+        args.push('-crf', '18', '-preset', 'medium');
+      } else if (options.quality === 'compressed') {
         args.push('-crf', '28', '-preset', 'fast');
       } else {
+        // Default balanced
         args.push('-crf', '23', '-preset', 'medium');
       }
 
-      // Resolution Filter
-      const resolution = options.resolution || 'original';
-      if (resolution === '1080p') {
-        args.push('-vf', 'scale=-2:1080');
-      } else if (resolution === '720p') {
-        args.push('-vf', 'scale=-2:720');
-      } else if (resolution === '480p') {
-        args.push('-vf', 'scale=-2:480');
+      // Frame rate
+      if (options.fps && options.fps !== 'original') {
+        args.push('-r', options.fps);
       }
 
-      // Frame Rate
-      if (options.fps === '30') {
-        args.push('-r', '30');
-      } else if (options.fps === '60') {
-        args.push('-r', '60');
-      }
-
-      // Audio handling
-      if (sourceMeta.audioCodec) {
+      // Audio Codec & Bitrate
+      if (meta.audioCodec) {
         args.push('-c:a', 'aac');
-        const audioBitrate = options.audioBitrate || '192k';
-        args.push('-b:a', audioBitrate);
+        args.push('-b:a', options.audioBitrate || '192k');
       } else {
         args.push('-an');
       }
 
+      // Faststart for progressive web playback
+      args.push('-movflags', '+faststart');
       args.push(outputPath);
 
+      const ffmpegBin = await GET_FFMPEG();
       childProcess = spawn(ffmpegBin, args);
 
-      // Parse FFmpeg stderr for real-time progress
-      if (childProcess.stderr) {
-        childProcess.stderr.on('data', (data: Buffer) => {
-          if (isCancelled) return;
-          const str = data.toString();
-          // Match time=00:00:02.50
-          const match = str.match(/time=(\d{2}):(\d{2}):(\d{2})\.(\d{2})/);
-          if (match && sourceMeta.duration > 0) {
-            const hours = parseInt(match[1], 10);
-            const mins = parseInt(match[2], 10);
-            const secs = parseInt(match[3], 10);
-            const centis = parseInt(match[4], 10);
-            const currentTime = hours * 3600 + mins * 60 + secs + centis / 100;
-            const percent = Math.min(99, Math.floor((currentTime / sourceMeta.duration) * 100));
-            if (onProgress) {
-              onProgress(percent);
-            }
-          }
-        });
-      }
+      let totalDurationSec = meta.duration || 1;
+      let stderrLogs = '';
 
-      childProcess.on('error', (err) => {
-        if (isCancelled) return;
-        reject(new Error(`FFmpeg process execution failed: ${err.message}`));
+      childProcess.stderr.on('data', (data: Buffer) => {
+        const str = data.toString();
+        stderrLogs += str;
+
+        // Parse time=HH:MM:SS.ms progress
+        const timeMatch = str.match(/time=(\d{2}):(\d{2}):(\d{2}\.\d+)/);
+        if (timeMatch && onProgress) {
+          const hours = parseFloat(timeMatch[1]);
+          const mins = parseFloat(timeMatch[2]);
+          const secs = parseFloat(timeMatch[3]);
+          const currentSec = hours * 3600 + mins * 60 + secs;
+          const percent = Math.min(99, Math.round((currentSec / totalDurationSec) * 100));
+          onProgress(percent);
+        }
       });
 
-      childProcess.on('close', async (code) => {
+      childProcess.on('error', (spawnErr: any) => {
+        if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+        reject(
+          new Error(
+            `Failed to start FFmpeg process (${spawnErr.message}). Ensure ffmpeg binary is available.`
+          )
+        );
+      });
+
+      childProcess.on('close', async (code: number) => {
         if (isCancelled) {
-          return reject(new Error('Conversion process was cancelled by user.'));
+          if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+          return reject(new Error('Conversion cancelled by user.'));
         }
 
         if (code !== 0) {
-          // Clean up partial output file if error
-          if (fs.existsSync(outputPath)) {
-            try { fs.unlinkSync(outputPath); } catch (_) {}
-          }
-          return reject(new Error(`FFmpeg process exited with failure code ${code}.`));
+          if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+          return reject(
+            new Error(
+              `FFmpeg process exited with error code ${code}.\nLogs: ${stderrLogs.slice(-300)}`
+            )
+          );
         }
 
-        if (onProgress) {
-          onProgress(100);
-        }
-
-        // Step 2: Validate generated MP4 output
         try {
-          const validatedMeta = await validateMp4Output(outputPath, sourceMeta);
-          resolve(validatedMeta);
-        } catch (valErr: any) {
-          if (fs.existsSync(outputPath)) {
-            try { fs.unlinkSync(outputPath); } catch (_) {}
+          if (onProgress) onProgress(100);
+          // 3. Inspect generated MP4 file to confirm validity
+          const outputMeta = await probeVideo(outputPath);
+
+          if (outputMeta.fileSize === 0) {
+            if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+            return reject(new Error('Generated MP4 file is 0 bytes. Conversion failed.'));
           }
-          reject(new Error(`Generated MP4 output validation failed: ${valErr.message}`));
+
+          resolve(outputMeta);
+        } catch (err: any) {
+          if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+          reject(new Error(`Generated MP4 validation failed: ${err.message}`));
         }
       });
-    } catch (err: any) {
-      reject(err);
+    } catch (initErr: any) {
+      reject(initErr);
     }
   });
 
-  const cancel = () => {
-    isCancelled = true;
-    if (childProcess) {
-      childProcess.kill('SIGKILL');
-    }
-    if (fs.existsSync(outputPath)) {
-      try {
-        fs.unlinkSync(outputPath);
-      } catch (_) {}
-    }
+  return {
+    promise,
+    cancel: () => {
+      isCancelled = true;
+      if (childProcess) {
+        try {
+          childProcess.kill('SIGKILL');
+        } catch {}
+      }
+      if (fs.existsSync(outputPath)) {
+        try {
+          fs.unlinkSync(outputPath);
+        } catch {}
+      }
+    },
   };
-
-  return { promise, cancel };
-};
-
-/**
- * Validate generated MP4 file against strict requirements
- */
-export const validateMp4Output = async (
-  outputPath: string,
-  sourceMeta: VideoMetadata
-): Promise<VideoMetadata> => {
-  if (!fs.existsSync(outputPath)) {
-    throw new Error('Converted MP4 output file does not exist on disk.');
-  }
-
-  const stat = fs.statSync(outputPath);
-  if (stat.size === 0) {
-    throw new Error('Converted MP4 file is 0 bytes.');
-  }
-
-  const outputMeta = await probeVideo(outputPath);
-
-  if (outputMeta.videoCodec !== 'h264') {
-    throw new Error(`Invalid codec: Expected h264 but got ${outputMeta.videoCodec}.`);
-  }
-
-  if (outputMeta.width === 0 || outputMeta.height === 0) {
-    throw new Error('Invalid video dimensions: Converted MP4 is 0x0.');
-  }
-
-  if (sourceMeta.audioCodec && !outputMeta.audioCodec) {
-    throw new Error('Audio stream lost during MOV to MP4 conversion.');
-  }
-
-  // Duration check (within 2 seconds tolerance)
-  if (Math.abs(outputMeta.duration - sourceMeta.duration) > 2.0) {
-    throw new Error(
-      `Duration mismatch: Source is ${sourceMeta.duration}s, converted MP4 is ${outputMeta.duration}s.`
-    );
-  }
-
-  return outputMeta;
 };

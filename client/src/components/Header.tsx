@@ -67,9 +67,9 @@ export const Header: React.FC<HeaderProps> = ({
               cursor: 'pointer',
             }}
           >
-            <option value="mock" style={{ background: '#121826' }}>Mock AI (Demo Mode)</option>
-            <option value="gemini" style={{ background: '#121826' }}>Google Gemini 1.5 Flash</option>
+            <option value="gemini" style={{ background: '#121826' }}>Google Gemini 1.5 / 3.1 Flash</option>
             <option value="openai" style={{ background: '#121826' }}>OpenAI GPT-4o</option>
+            <option value="mock" style={{ background: '#121826' }}>Mock AI (Demo Mode)</option>
           </select>
         </div>
 

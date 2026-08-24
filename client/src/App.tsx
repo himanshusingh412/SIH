@@ -20,7 +20,7 @@ import type { AudienceProfile, InputCategory, OutputType } from './types';
 
 export function App() {
   const [route, setRoute] = useState<string>('dashboard');
-  const [selectedProvider, setSelectedProvider] = useState<string>('mock');
+  const [selectedProvider, setSelectedProvider] = useState<string>('gemini');
   const [showExportModal, setShowExportModal] = useState<boolean>(false);
   const [autoFixAttempt, setAutoFixAttempt] = useState<number>(0);
   const [selectedOutputTypes, setSelectedOutputTypes] = useState<OutputType[]>([
@@ -49,6 +49,13 @@ export function App() {
 
   // Initial load
   useEffect(() => {
+    import('./services/apiClient').then(({ apiClient }) => {
+      apiClient.checkHealth().then((data) => {
+        if (data && data.providers && data.providers.aiProvider) {
+          setSelectedProvider(data.providers.aiProvider.toLowerCase());
+        }
+      }).catch(() => {});
+    });
     handleLoadDemo();
   }, []);
 
