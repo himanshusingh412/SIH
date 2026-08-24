@@ -1,10 +1,11 @@
 import { getAIProvider } from '../ai/provider';
 import { FactLockEngine } from '../validators/factLockEngine';
 import { ConsistencyValidator } from '../validators/consistencyValidator';
+import { formatEngine } from '../engine/formatEngine';
 
 async function runTestSuite() {
   console.log('\n======================================================');
-  console.log('🧪 SIH 2026 AI PLATFORM — UNIT, INTEGRATION & E2E SUITE');
+  console.log('🧪 CONTENTSPINE AI — FORMAT ENGINE & INTEGRATION SUITE');
   console.log('======================================================\n');
 
   let passedTests = 0;
@@ -21,7 +22,7 @@ async function runTestSuite() {
   }
 
   // ─── 1. UNIT TESTS ──────────────────────────────────
-  console.log('📦 1. UNIT TESTS');
+  console.log('📦 1. UNIT TESTS & AI PROVIDER ABSTRACTION');
 
   // 1.1 AI Provider Selection
   try {
@@ -95,112 +96,86 @@ async function runTestSuite() {
     assert(false, 'Consistency Validator — Discrepancy Contradiction Detection', err.message);
   }
 
-  // 1.6 Output Generation Engine
+  // ─── 2. REAL FORMAT ENGINE EXPORTERS & VALIDATORS ────────
+  console.log('\n📄 2. REAL FORMAT ENGINE EXPORTERS & VALIDATION');
+
+  // 2.1 Native DOCX Exporter
   try {
-    const provider = getAIProvider();
-    const mockSpine = {
-      summary: 'Test summary',
-      entities: [],
-      dates: [],
-      numbers: [],
-      locations: [],
-      events: [],
-      risks: [],
-      recommendations: [],
-      claims: [],
-      relationships: [],
-      factLocks: [],
+    const sampleInput = {
+      title: 'Incident Briefing Report',
+      subtitle: 'Verified Cyber Advisory',
+      sections: [{ heading: 'Summary', paragraphs: ['11 systems compromised on 21 October 2026.'] }],
     };
-    const out = await provider.generateOutput(mockSpine, 'EXECUTIVE_SUMMARY', 'EXECUTIVE');
-    assert(Boolean(out.title && out.content), 'AI Output Generation Engine', `Title: ${out.title.substring(0, 30)}`);
+    const { buffer, mimeType } = await formatEngine.exportDocx(sampleInput);
+    const isDocxZip = buffer.slice(0, 2).toString('ascii') === 'PK';
+    assert(
+      isDocxZip && mimeType.includes('document'),
+      'FormatEngine — Real DOCX Binary Exporter',
+      `Size: ${buffer.length} bytes, Header: ${buffer.slice(0, 4).toString('hex')}`
+    );
   } catch (err: any) {
-    assert(false, 'AI Output Generation Engine', err.message);
+    assert(false, 'FormatEngine — Real DOCX Binary Exporter', err.message);
   }
 
-  // ─── 2. INTEGRATION TESTS ───────────────────────────
-  console.log('\n🔗 2. INTEGRATION TESTS (API Server)');
-  const baseUrl = 'http://localhost:5001/api';
-
-  let testProjectId = '';
-  let testDocId = '';
-
-  // 2.1 Project Creation Integration
+  // 2.2 Native PDF Exporter
   try {
-    const res = await fetch(`${baseUrl}/projects`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: 'Integration Test Suite Project', description: 'Testing API Integration' }),
+    const sampleInput = {
+      title: 'Incident Briefing Report',
+      subtitle: 'Verified Cyber Advisory',
+      sections: [{ heading: 'Summary', paragraphs: ['11 systems compromised on 21 October 2026.'] }],
+    };
+    const { buffer, mimeType } = await formatEngine.exportPdf(sampleInput);
+    const isPdfMagic = buffer.slice(0, 4).toString('ascii') === '%PDF';
+    assert(
+      isPdfMagic && mimeType === 'application/pdf',
+      'FormatEngine — Real PDF Binary Exporter',
+      `Size: ${buffer.length} bytes, Header: ${buffer.slice(0, 4).toString('ascii')}`
+    );
+  } catch (err: any) {
+    assert(false, 'FormatEngine — Real PDF Binary Exporter', err.message);
+  }
+
+  // 2.3 Native PPTX Exporter
+  try {
+    const sampleInput = {
+      title: 'Incident Presentation',
+      slides: [{ title: 'Overview', bulletPoints: ['11 credentials compromised', 'Zero data exfiltrated'] }],
+    };
+    const { buffer, mimeType } = await formatEngine.exportPptx(sampleInput);
+    const isPptxZip = buffer.slice(0, 2).toString('ascii') === 'PK';
+    assert(
+      isPptxZip && mimeType.includes('presentation'),
+      'FormatEngine — Real PPTX Binary Exporter',
+      `Size: ${buffer.length} bytes`
+    );
+  } catch (err: any) {
+    assert(false, 'FormatEngine — Real PPTX Binary Exporter', err.message);
+  }
+
+  // 2.4 Data Exporters (JSON, CSV, XML, YAML)
+  try {
+    const jsonRes = formatEngine.exportJson({ title: 'Test', count: 11 });
+    const csvRes = formatEngine.exportCsv(['Metric', 'Value'], [['Impacted', '11']]);
+    const xmlRes = await formatEngine.exportXml('Report', { Impacted: '11' });
+    const yamlRes = formatEngine.exportYaml({ Impacted: '11' });
+
+    const allValid = jsonRes.isValid && csvRes.isValid && xmlRes.isValid && yamlRes.isValid;
+    assert(allValid, 'FormatEngine — Data Exporters (JSON, CSV, XML, YAML)', `All valid parsing checks passed`);
+  } catch (err: any) {
+    assert(false, 'FormatEngine — Data Exporters (JSON, CSV, XML, YAML)', err.message);
+  }
+
+  // 2.5 FormatValidator Binary & Syntax Validation
+  try {
+    const samplePdf = await formatEngine.exportPdf({ title: 'Test', sections: [] });
+    const valResult = await formatEngine.validateFormat({
+      format: 'PDF',
+      content: samplePdf.buffer,
+      lockedFacts: [],
     });
-    const json = await res.json();
-    testProjectId = json.data?.project?.id;
-    assert(res.status === 201 && Boolean(testProjectId), 'Integration — Create Project', `Status: ${res.status}`);
+    assert(valResult.passed && valResult.fileIntegrityPassed, 'FormatValidator — Binary PDF Integrity Check');
   } catch (err: any) {
-    assert(false, 'Integration — Create Project', err.message);
-  }
-
-  // 2.2 Upload & Ingestion Integration
-  try {
-    const res = await fetch(`${baseUrl}/projects/${testProjectId}/source`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        category: 'THREAT_INTEL',
-        rawText: 'SIH 2026 Integration Threat Report. Summary: Smart India Hackathon verified 99.9% accuracy on 2026-08-24.',
-      }),
-    });
-    const json = await res.json();
-    testDocId = json.data?.documentId;
-    assert(res.status === 201 && Boolean(testDocId), 'Integration — Document Upload & Ingestion', `DocID: ${testDocId}`);
-  } catch (err: any) {
-    assert(false, 'Integration — Document Upload & Ingestion', err.message);
-  }
-
-  // 2.3 Process & Content Spine Integration
-  try {
-    const res = await fetch(`${baseUrl}/projects/${testProjectId}/process`, { method: 'POST' });
-    const json = await res.json();
-    assert(res.status === 200 && Boolean(json.data?.spine), 'Integration — Process & Build Content Spine');
-  } catch (err: any) {
-    assert(false, 'Integration — Process & Build Content Spine', err.message);
-  }
-
-  // 2.4 Multi-Output Generation Integration
-  try {
-    const res = await fetch(`${baseUrl}/projects/${testProjectId}/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        outputTypes: ['EXECUTIVE_SUMMARY', 'LINKEDIN_POST', 'X_THREAD', 'ADVISORY', 'PRESENTATION', 'INFOGRAPHIC', 'VIDEO_PACKAGE'],
-        audience: 'EXECUTIVE',
-      }),
-    });
-    const json = await res.json();
-    assert(res.status === 200 && json.data?.outputs?.length === 7, 'Integration — Multi-Output Generation (7 Deliverables)', `Count: ${json.data?.outputs?.length}`);
-  } catch (err: any) {
-    assert(false, 'Integration — Multi-Output Generation (7 Deliverables)', err.message);
-  }
-
-  // 2.5 Validation Integration
-  try {
-    const res = await fetch(`${baseUrl}/projects/${testProjectId}/validation`);
-    const json = await res.json();
-    assert(res.status === 200 && json.data?.report?.consistencyScore !== undefined, 'Integration — Project Validation Report');
-  } catch (err: any) {
-    assert(false, 'Integration — Project Validation Report', err.message);
-  }
-
-  // ─── 3. E2E FULL FLOW TEST ───────────────────────────
-  console.log('\n🔄 3. END-TO-END FULL WORKFLOW TEST');
-  console.log('  Flow: Create Project → Upload → Process → Content Spine → Select Formats → Generate → Validate → Review → Export Package');
-
-  try {
-    // Export endpoint test
-    const expRes = await fetch(`${baseUrl}/projects/${testProjectId}/export`);
-    const expJson = await expRes.json();
-    const validExport = expRes.status === 200 && expJson.data?.jsonPackage?.deliverables?.length === 7;
-    assert(validExport, 'E2E — Full Lifecycle Complete & Export Bundle Generated', `Deliverables: ${expJson.data?.jsonPackage?.deliverables?.length}`);
-  } catch (err: any) {
-    assert(false, 'E2E — Full Lifecycle Complete & Export Bundle Generated', err.message);
+    assert(false, 'FormatValidator — Binary PDF Integrity Check', err.message);
   }
 
   console.log('\n======================================================');

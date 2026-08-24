@@ -1,18 +1,68 @@
 import React, { useState } from 'react';
-import { Download, Copy, FileText, Printer, Presentation, Video, Check, X, ShieldCheck } from 'lucide-react';
+import { Download, Copy, FileText, Printer, Presentation, Check, X, ShieldCheck, FileSpreadsheet, Code } from 'lucide-react';
 import type { GeneratedOutput } from '../types';
 
 interface ExportModalProps {
   outputs: GeneratedOutput[];
+  projectId?: string;
   projectTitle?: string;
   onClose: () => void;
 }
 
-export const ExportModal: React.FC<ExportModalProps> = ({ outputs, projectTitle = 'SIH 2026 Transformation Project', onClose }) => {
+export const ExportModal: React.FC<ExportModalProps> = ({
+  outputs,
+  projectId = 'demo-project',
+  projectTitle = 'SIH 2026 Transformation Project',
+  onClose,
+}) => {
   const [copied, setCopied] = useState(false);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
 
-  const downloadFile = (filename: string, content: string, type: string) => {
+  const triggerDirectDownload = (url: string) => {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = '';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+
+  const handleExportDOCX = () => {
+    triggerDirectDownload(`/api/projects/${projectId}/export/docx`);
+    triggerToast('Downloading Real Word Document (.docx)...');
+  };
+
+  const handleExportPDF = () => {
+    triggerDirectDownload(`/api/projects/${projectId}/export/pdf`);
+    triggerToast('Downloading Real PDF Document (.pdf)...');
+  };
+
+  const handleExportPPTX = () => {
+    triggerDirectDownload(`/api/projects/${projectId}/export/pptx`);
+    triggerToast('Downloading Real PowerPoint Presentation (.pptx)...');
+  };
+
+  const handleExportJSON = () => {
+    triggerDirectDownload(`/api/projects/${projectId}/export/data?format=json`);
+    triggerToast('Downloading Real JSON Data Package (.json)...');
+  };
+
+  const handleExportCSV = () => {
+    triggerDirectDownload(`/api/projects/${projectId}/export/data?format=csv`);
+    triggerToast('Downloading Real CSV Dataset (.csv)...');
+  };
+
+  const handleExportXML = () => {
+    triggerDirectDownload(`/api/projects/${projectId}/export/data?format=xml`);
+    triggerToast('Downloading Real XML Document (.xml)...');
+  };
+
+  const handleExportYAML = () => {
+    triggerDirectDownload(`/api/projects/${projectId}/export/data?format=yaml`);
+    triggerToast('Downloading Real YAML Document (.yaml)...');
+  };
+
+  const downloadClientFile = (filename: string, content: string, type: string) => {
     const blob = new Blob([content], { type });
     const url = URL.createObjectURL(blob);
     const downloadAnchor = document.createElement('a');
@@ -24,115 +74,19 @@ export const ExportModal: React.FC<ExportModalProps> = ({ outputs, projectTitle 
     URL.revokeObjectURL(url);
   };
 
-  const handleExportJSON = () => {
-    const data = {
-      project: projectTitle,
-      exportedAt: new Date().toISOString(),
-      platform: 'SIH 2026 Content Transformation Platform',
-      version: '1.0.0-PROTOTYPE',
-      outputs: outputs.map((o) => ({
-        id: o.id,
-        type: o.outputType,
-        title: o.title,
-        audience: o.audienceProfile,
-        isConsistent: o.isConsistent,
-        content: o.content,
-      })),
-    };
-    downloadFile('SIH2026_Content_Transformation_Package.json', JSON.stringify(data, null, 2), 'application/json');
-    triggerToast('JSON Package Exported');
+  const handleExportMarkdown = () => {
+    const mdContent = `# ${projectTitle}\n*SIH 2026 Fact-Locked Multi-Channel Deliverables Report*\n*Exported: ${new Date().toLocaleString()}*\n\n---\n\n` +
+      outputs.map((o) => `## Format: ${o.outputType.replace(/_/g, ' ')}\n**Audience Profile**: ${o.audienceProfile}\n**Fact Lock Verification**: ${o.isConsistent ? 'Verified Immutable' : 'Pending Review'}\n\n### ${o.title}\n\n${o.content}\n\n---\n`).join('\n');
+    downloadClientFile(`${projectTitle.replace(/[^a-zA-Z0-9]/g, '_')}.md`, mdContent, 'text/markdown;charset=utf-8');
+    triggerToast('Markdown Document (.md) Exported');
   };
 
   const handleExportTXT = () => {
     const txtContent = outputs
       .map((o) => `==================================================\nTITLE: ${o.title}\nFORMAT: ${o.outputType}\nAUDIENCE: ${o.audienceProfile}\n==================================================\n\n${o.content}\n\n`)
       .join('\n');
-    downloadFile('SIH2026_Deliverables_Plain_Text.txt', txtContent, 'text/plain;charset=utf-8');
+    downloadClientFile(`${projectTitle.replace(/[^a-zA-Z0-9]/g, '_')}.txt`, txtContent, 'text/plain;charset=utf-8');
     triggerToast('Plain Text File (.txt) Exported');
-  };
-
-  const handleExportMarkdown = () => {
-    const mdContent = `# ${projectTitle}\n*SIH 2026 Fact-Locked Multi-Channel Deliverables Report*\n*Exported: ${new Date().toLocaleString()}*\n\n---\n\n` +
-      outputs.map((o) => `## Format: ${o.outputType.replace(/_/g, ' ')}\n**Audience Profile**: ${o.audienceProfile}\n**Fact Lock Verification**: ${o.isConsistent ? 'Verified Immutable' : 'Pending Review'}\n\n### ${o.title}\n\n${o.content}\n\n---\n`).join('\n');
-    downloadFile('SIH2026_Deliverables_Report.md', mdContent, 'text/markdown;charset=utf-8');
-    triggerToast('Markdown Document (.md) Exported');
-  };
-
-  const handleExportPresentationHTML = () => {
-    const presentationOutput = outputs.find((o) => o.outputType === 'PRESENTATION');
-    let slidesData: any[] = [];
-    if (presentationOutput) {
-      try {
-        slidesData = JSON.parse(presentationOutput.content);
-      } catch {
-        slidesData = [];
-      }
-    }
-
-    if (!Array.isArray(slidesData) || slidesData.length === 0) {
-      // Fallback
-      slidesData = [
-        { slideNumber: 1, title: projectTitle, bulletPoints: ['Fact-Locked AI Content Spine', 'Zero Fact Drift Architecture'], speakerNotes: 'SIH 2026 Pitch Deck' }
-      ];
-    }
-
-    const htmlDeck = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>${projectTitle} — Presentation Deck</title>
-  <style>
-    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 40px; }
-    .slide { background: linear-gradient(135deg, #1e1b4b, #0f172a); border: 2px solid #6366f1; border-radius: 16px; padding: 40px; margin-bottom: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-    .slide-num { color: #818cf8; font-weight: 700; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; }
-    h1 { font-size: 2.2rem; color: #ffffff; margin-top: 10px; margin-bottom: 20px; }
-    ul { font-size: 1.2rem; line-height: 1.8; color: #cbd5e1; }
-    .notes { margin-top: 25px; padding-top: 15px; border-top: 1px solid #334155; font-size: 0.95rem; color: #94a3b8; font-style: italic; }
-    .badge { background: #10b981; color: #ffffff; padding: 4px 12px; borderRadius: 4px; font-size: 0.8rem; font-weight: bold; }
-  </style>
-</head>
-<body>
-  <div style="margin-bottom: 30px; display: flex; justify-content: space-between; align-items: center;">
-    <h2>${projectTitle} <span class="badge">Fact-Locked Presentation</span></h2>
-    <span>Generated by SIH 2026 Engine</span>
-  </div>
-  ${slidesData.map((s: any) => `
-    <div class="slide">
-      <div class="slide-num">Slide ${s.slideNumber || 1}</div>
-      <h1>${s.title || 'Slide Title'}</h1>
-      <ul>
-        ${(s.bulletPoints || []).map((b: string) => `<li>${b}</li>`).join('')}
-      </ul>
-      <div class="notes"><strong>Speaker Notes:</strong> ${s.speakerNotes || 'N/A'}</div>
-    </div>
-  `).join('')}
-</body>
-</html>`;
-
-    downloadFile('SIH2026_Presentation_Deck.html', htmlDeck, 'text/html;charset=utf-8');
-    triggerToast('Presentation Deck (.html) Exported');
-  };
-
-  const handleExportVideoPackage = () => {
-    const videoOutput = outputs.find((o) => o.outputType === 'VIDEO_PACKAGE');
-    let videoContent = videoOutput ? videoOutput.content : 'Video package content unavailable';
-    
-    const packageText = `==================================================\n` +
-      `SIH 2026 COMPLETE VIDEO PRODUCTION PACKAGE (PROTOTYPE)\n` +
-      `Project: ${projectTitle}\n` +
-      `Fact Locking: VERIFIED IMMUTABLE\n` +
-      `==================================================\n\n` +
-      `[PROTOTYPE NOTICE: Render engine integration target = Remotion / FFmpeg Video Stub]\n\n` +
-      `${videoContent}\n\n` +
-      `==================================================\n` +
-      `AUDIO PROMPTS & TIMINGS:\n` +
-      `- Voiceover Pace: 140 WPM\n` +
-      `- Audio Tone: Executive / Authoritative\n` +
-      `- Fact Lock Verification Hash: ${Math.random().toString(36).substring(2, 10).toUpperCase()}\n` +
-      `==================================================\n`;
-
-    downloadFile('SIH2026_Video_Production_Package.txt', packageText, 'text/plain;charset=utf-8');
-    triggerToast('Video Production Package (.txt) Exported');
   };
 
   const handlePrintView = () => {
@@ -154,15 +108,11 @@ export const ExportModal: React.FC<ExportModalProps> = ({ outputs, projectTitle 
     .meta { font-size: 10pt; color: #555; margin-bottom: 20px; font-style: italic; }
     .deliverable { page-break-inside: avoid; margin-bottom: 30px; }
     pre { font-family: 'Courier New', monospace; font-size: 9pt; white-space: pre-wrap; background: #f5f5f5; padding: 12px; border: 1px solid #ddd; }
-    @media print {
-      body { padding: 0; }
-      .deliverable { page-break-after: always; }
-    }
   </style>
 </head>
 <body>
   <h1>${projectTitle}</h1>
-  <div class="meta">SIH 2026 Content Transformation Platform — Fact-Locked Multi-Output Report | Printed: ${new Date().toLocaleString()}</div>
+  <div class="meta">ContentSpine AI Platform — Fact-Locked Report | Printed: ${new Date().toLocaleString()}</div>
   ${outputs.map((o) => `
     <div class="deliverable">
       <h2>Format: ${o.outputType.replace(/_/g, ' ')}</h2>
@@ -186,7 +136,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ outputs, projectTitle 
     const text = outputs.map((o) => `=== ${o.title} (${o.outputType}) ===\n${o.content}`).join('\n\n');
     navigator.clipboard.writeText(text);
     setCopied(true);
-    triggerToast('All 7 Formats Copied to Clipboard');
+    triggerToast('All Formats Copied to Clipboard');
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -203,7 +153,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ outputs, projectTitle 
         left: 0,
         right: 0,
         bottom: 0,
-        background: 'rgba(0, 0, 0, 0.8)',
+        background: 'rgba(0, 0, 0, 0.82)',
         backdropFilter: 'blur(8px)',
         display: 'flex',
         alignItems: 'center',
@@ -211,7 +161,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ outputs, projectTitle 
         zIndex: 1000,
       }}
     >
-      <div className="glass-panel" style={{ width: '560px', padding: '28px', border: '1px solid var(--accent-primary)', position: 'relative' }}>
+      <div className="glass-panel" style={{ width: '640px', padding: '28px', border: '1px solid var(--accent-primary)', position: 'relative' }}>
         <button
           onClick={onClose}
           style={{
@@ -230,11 +180,11 @@ export const ExportModal: React.FC<ExportModalProps> = ({ outputs, projectTitle 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
           <ShieldCheck size={22} color="#6ee7b7" />
           <h3 style={{ fontSize: '1.35rem', fontWeight: 800 }} className="gradient-text">
-            Export Deliverables Package
+            Format Engine Export Center
           </h3>
         </div>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: '20px' }}>
-          Export all 7 fact-locked outputs generated from single Content Spine.
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: '18px' }}>
+          Export real native binary documents (.docx, .pdf, .pptx) and structured datasets (.json, .csv, .xml, .yaml).
         </p>
 
         {exportNotice && (
@@ -256,56 +206,57 @@ export const ExportModal: React.FC<ExportModalProps> = ({ outputs, projectTitle 
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' }}>
-          <button className="btn-primary" onClick={handleExportJSON} style={{ justifyContent: 'center', padding: '10px 14px', fontSize: '0.82rem' }}>
-            <Download size={16} /> JSON Package (.json)
-          </button>
-          
-          <button className="btn-secondary" onClick={handleExportMarkdown} style={{ justifyContent: 'center', padding: '10px 14px', fontSize: '0.82rem' }}>
-            <FileText size={16} /> Markdown Doc (.md)
+        {/* Real Exporters Grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '18px' }}>
+          <button className="btn-primary" onClick={handleExportDOCX} style={{ justifyContent: 'center', padding: '10px 8px', fontSize: '0.78rem' }}>
+            <FileText size={15} /> Word (.docx)
           </button>
 
-          <button className="btn-secondary" onClick={handleExportTXT} style={{ justifyContent: 'center', padding: '10px 14px', fontSize: '0.82rem' }}>
-            <FileText size={16} /> Plain Text File (.txt)
+          <button className="btn-primary" onClick={handleExportPDF} style={{ justifyContent: 'center', padding: '10px 8px', fontSize: '0.78rem' }}>
+            <Download size={15} /> PDF (.pdf)
           </button>
 
-          <button className="btn-secondary" onClick={handlePrintView} style={{ justifyContent: 'center', padding: '10px 14px', fontSize: '0.82rem' }}>
-            <Printer size={16} /> Print-Friendly View
+          <button className="btn-primary" onClick={handleExportPPTX} style={{ justifyContent: 'center', padding: '10px 8px', fontSize: '0.78rem' }}>
+            <Presentation size={15} /> PowerPoint (.pptx)
           </button>
 
-          <button className="btn-secondary" onClick={handleExportPresentationHTML} style={{ justifyContent: 'center', padding: '10px 14px', fontSize: '0.82rem' }}>
-            <Presentation size={16} /> Slide Deck (.html)
+          <button className="btn-secondary" onClick={handleExportJSON} style={{ justifyContent: 'center', padding: '10px 8px', fontSize: '0.78rem' }}>
+            <Code size={15} /> JSON (.json)
           </button>
 
-          <button className="btn-secondary" onClick={handleExportVideoPackage} style={{ justifyContent: 'center', padding: '10px 14px', fontSize: '0.82rem' }}>
-            <Video size={16} /> Video Package (.txt)
+          <button className="btn-secondary" onClick={handleExportCSV} style={{ justifyContent: 'center', padding: '10px 8px', fontSize: '0.78rem' }}>
+            <FileSpreadsheet size={15} /> CSV (.csv)
+          </button>
+
+          <button className="btn-secondary" onClick={handleExportXML} style={{ justifyContent: 'center', padding: '10px 8px', fontSize: '0.78rem' }}>
+            <Code size={15} /> XML (.xml)
+          </button>
+
+          <button className="btn-secondary" onClick={handleExportYAML} style={{ justifyContent: 'center', padding: '10px 8px', fontSize: '0.78rem' }}>
+            <Code size={15} /> YAML (.yaml)
+          </button>
+
+          <button className="btn-secondary" onClick={handleExportMarkdown} style={{ justifyContent: 'center', padding: '10px 8px', fontSize: '0.78rem' }}>
+            <FileText size={15} /> Markdown (.md)
+          </button>
+
+          <button className="btn-secondary" onClick={handleExportTXT} style={{ justifyContent: 'center', padding: '10px 8px', fontSize: '0.78rem' }}>
+            <FileText size={15} /> Text (.txt)
           </button>
         </div>
 
-        <button
-          className="btn-secondary"
-          onClick={handleCopyAll}
-          style={{ width: '100%', justifyContent: 'center', padding: '10px', marginBottom: '20px', fontSize: '0.85rem' }}
-        >
-          {copied ? <Check size={16} color="#6ee7b7" /> : <Copy size={16} />}
-          <span>{copied ? 'All Formats Copied!' : 'Copy All Formats to Clipboard'}</span>
-        </button>
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
+          <button className="btn-secondary" onClick={handlePrintView} style={{ flex: 1, justifyContent: 'center', padding: '9px', fontSize: '0.8rem' }}>
+            <Printer size={15} /> Print View
+          </button>
 
-        <div
-          style={{
-            background: 'rgba(255, 255, 255, 0.03)',
-            border: '1px dashed var(--border-color)',
-            borderRadius: '6px',
-            padding: '10px',
-            fontSize: '0.72rem',
-            color: 'var(--text-muted)',
-            lineHeight: '1.4',
-          }}
-        >
-          <strong style={{ color: '#fcd34d' }}>PROTOTYPE EXPORT NOTICE:</strong> Structured video package export outputs full storyboard script, audio prompts, and visual scene cues. Native MP4 rendering requires Remotion video worker integration stub.
+          <button className="btn-secondary" onClick={handleCopyAll} style={{ flex: 1, justifyContent: 'center', padding: '9px', fontSize: '0.8rem' }}>
+            {copied ? <Check size={15} color="#6ee7b7" /> : <Copy size={15} />}
+            <span>{copied ? 'Copied All!' : 'Copy to Clipboard'}</span>
+          </button>
         </div>
 
-        <div style={{ textAlign: 'right', marginTop: '20px' }}>
+        <div style={{ textAlign: 'right' }}>
           <button className="btn-secondary" onClick={onClose} style={{ padding: '6px 16px', fontSize: '0.8rem' }}>
             Close
           </button>

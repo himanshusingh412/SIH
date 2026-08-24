@@ -2,7 +2,12 @@ import { Router } from 'express';
 import multer from 'multer';
 import {
   autoCorrect,
+  convertFormatHandler,
   createProject,
+  exportDataHandler,
+  exportDocxHandler,
+  exportPdfHandler,
+  exportPptxHandler,
   exportProjectPackage,
   generateOutputs,
   getContentSpine,
@@ -48,11 +53,16 @@ router.get('/outputs/:id', getOutputById);
 router.post('/outputs/:id/validate', validateSingleOutput);
 router.post('/outputs/:id/regenerate', regenerateSingleOutput);
 
-// Validation, Auto-Correction & Export
+// Validation, Auto-Correction, Conversion & Exporters
 router.post('/projects/:id/validate', validateProject);
 router.get('/projects/:id/validation', getProjectValidation);
 router.post('/projects/:id/auto-correct', autoCorrect);
 router.post('/projects/:id/test-inject', injectTestErrors);
 router.get('/projects/:id/export', exportProjectPackage);
+router.get('/projects/:id/export/docx', exportDocxHandler);
+router.get('/projects/:id/export/pdf', exportPdfHandler);
+router.get('/projects/:id/export/pptx', exportPptxHandler);
+router.get('/projects/:id/export/data', exportDataHandler);
+router.post('/projects/:id/convert', convertFormatHandler);
 
 export default router;

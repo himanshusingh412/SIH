@@ -321,6 +321,7 @@ export function App() {
       {/* Screen 10: Export Modal */}
       {showExportModal && (
         <ExportModal
+          projectId={projectData?.id}
           projectTitle={projectData?.title}
           outputs={outputs}
           onClose={() => setShowExportModal(false)}
