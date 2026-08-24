@@ -1,5 +1,4 @@
 import { Request, Response, NextFunction } from 'express';
-import { sendError } from '../utils/response';
 
 export function errorHandler(
   err: any,
@@ -8,9 +7,19 @@ export function errorHandler(
   _next: NextFunction
 ) {
   console.error('❌ Express Global Error Handler:', err);
-  const status = err.statusCode || 500;
+  const status = err.statusCode || err.status || 500;
   const message = err.message || 'Internal Server Error';
-  return sendError(res, message, status, err.stack);
+  const code = err.code || 'INTERNAL_SERVER_ERROR';
+
+  res.setHeader('Content-Type', 'application/json');
+  return res.status(status).json({
+    success: false,
+    error: {
+      code,
+      message,
+    },
+    timestamp: new Date().toISOString(),
+  });
 }
 
 export function requestLogger(req: Request, _res: Response, next: NextFunction) {

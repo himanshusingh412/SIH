@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Bot, Send, Mic, ShieldCheck, RefreshCw, Zap } from 'lucide-react';
+import { Bot, Send, Mic, ShieldCheck, RefreshCw, Zap, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
 import type { ContentSpineData } from '../types';
+import { apiClient } from '../services/apiClient';
 
 interface AgentsPageProps {
   projectId: string;
@@ -19,6 +20,8 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine }) => {
   ]);
   const [isVoiceRecording, setIsVoiceRecording] = useState<boolean>(false);
   const [testResults, setTestResults] = useState<any | null>(null);
+  const [isTesting, setIsTesting] = useState<boolean>(false);
+  const [testError, setTestError] = useState<string | null>(null);
 
   const handleAsk = async () => {
     if (!query.trim()) return;
@@ -33,13 +36,26 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ projectId: projectId || 'demo-project', query: userQuery }),
       });
-      const data = await res.json();
+
+      const contentType = res.headers.get('content-type') || '';
+      let data: any;
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        data = { success: false, error: { message: text || 'Non-JSON server response' } };
+      }
+
+      if (!res.ok || data.success === false) {
+        throw new Error(data.error?.message || data.error || 'Agent request failed');
+      }
+
       setMessages((prev) => [
         ...prev,
         {
           role: 'ASSISTANT',
-          content: data.answer || 'I couldn’t find that information in the source.',
-          toolCalls: data.toolCalls,
+          content: data.answer || data.data?.answer || 'I couldn’t find that information in the source.',
+          toolCalls: data.toolCalls || data.data?.toolCalls,
         },
       ]);
     } catch (err: any) {
@@ -63,15 +79,30 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine }) => {
           queryText: 'How many systems were affected and when did the incident occur?',
         }),
       });
-      const data = await res.json();
+
+      const contentType = res.headers.get('content-type') || '';
+      let data: any;
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        data = { success: false, error: { message: text || 'Non-JSON voice agent response' } };
+      }
+
+      if (!res.ok || data.success === false) {
+        throw new Error(data.error?.message || 'Voice agent request failed');
+      }
+
+      const payload = data.data || data;
+
       setMessages((prev) => [
         ...prev,
         { role: 'USER', content: '🎤 [Voice Query] How many systems were affected and when did the incident occur?' },
         {
           role: 'ASSISTANT',
-          content: data.answer,
-          toolCalls: data.toolCalls,
-          audioUrl: data.audioUrl,
+          content: payload.answer,
+          toolCalls: payload.toolCalls,
+          audioUrl: payload.audioUrl,
         },
       ]);
     } catch (err: any) {
@@ -82,30 +113,24 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine }) => {
   };
 
   const handleRunAgentTests = async () => {
+    setIsTesting(true);
+    setTestError(null);
     try {
-      const res = await fetch('/api/agents/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          agentId: 'demo-agent-id',
-          testCases: [
-            { query: 'How many systems were affected?', expectedAnswerSnippet: '11' },
-            { query: 'What date did the incident occur?', expectedAnswerSnippet: '21 October 2026' },
-            { query: 'Who is the president of Mars?', expectedAnswerSnippet: "couldn't find" },
-          ],
-        }),
-      });
-      const data = await res.json();
+      const data = await apiClient.runAgentTest(projectId || 'demo-project');
       setTestResults(data);
     } catch (err: any) {
-      alert(`Test harness error: ${err.message}`);
+      console.error('❌ Agent Test UI Error:', err);
+      setTestError(err.message || 'The hallucination and fact test could not be completed.');
+      setTestResults(null);
+    } finally {
+      setIsTesting(false);
     }
   };
 
   const lockedFacts = spine?.factLocks || [];
 
   return (
-    <div style={{ padding: '24px', display: 'grid', gridTemplateColumns: '1fr 340px', gap: '20px' }}>
+    <div style={{ padding: '24px', display: 'grid', gridTemplateColumns: '1fr 360px', gap: '20px' }}>
       {/* Left: Chat Window */}
       <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', height: 'calc(100vh - 120px)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '12px', borderBottom: '1px solid var(--border-color)' }}>
@@ -218,19 +243,104 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine }) => {
         </div>
 
         {/* Agent Automated Test Harness */}
-        <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '14px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <div style={{ fontWeight: 700, color: 'white', fontSize: '0.85rem' }}>
             Automated Guardrail Test Harness
           </div>
-          <button className="btn-secondary" onClick={handleRunAgentTests} style={{ justifyContent: 'center' }}>
-            <Zap size={14} color="var(--accent-amber)" /> Run Hallucination & Fact Test
+
+          <button
+            className="btn-secondary"
+            onClick={handleRunAgentTests}
+            disabled={isTesting}
+            style={{ justifyContent: 'center', fontWeight: 700 }}
+          >
+            {isTesting ? (
+              <>
+                <RefreshCw size={14} className="spin" color="var(--accent-amber)" /> Running Test...
+              </>
+            ) : (
+              <>
+                <Zap size={14} color="var(--accent-amber)" /> Run Hallucination & Fact Test
+              </>
+            )}
           </button>
 
+          {/* Test Error State Card (Section 11) */}
+          {testError && (
+            <div
+              style={{
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                padding: '12px',
+                borderRadius: '8px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#fca5a5', fontWeight: 700, fontSize: '0.82rem' }}>
+                <AlertTriangle size={16} /> Agent test could not be completed.
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#cbd5e1', lineHeight: '1.4' }}>
+                {testError}
+              </div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                Check the AI provider configuration or server logs.
+              </div>
+              <button
+                className="btn-secondary"
+                onClick={handleRunAgentTests}
+                disabled={isTesting}
+                style={{ fontSize: '0.78rem', justifyContent: 'center', marginTop: '4px' }}
+              >
+                <RefreshCw size={12} /> Retry Test
+              </button>
+            </div>
+          )}
+
+          {/* Structured Test Results UI (Section 10) */}
           {testResults && (
-            <div style={{ background: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '6px', fontSize: '0.78rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#6ee7b7', fontWeight: 800 }}>
-                <span>Pass Rate: {testResults.passRate}</span>
-                <span>{testResults.passed}/{testResults.total} Passed</span>
+            <div style={{ background: 'rgba(0,0,0,0.35)', padding: '14px', borderRadius: '8px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.78rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '8px' }}>
+                <span style={{ color: '#6ee7b7', fontWeight: 800, fontSize: '0.85rem' }}>
+                  Pass Rate: {testResults.summary?.passRate || testResults.passRate}
+                </span>
+                <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>
+                  {testResults.summary?.passed ?? testResults.passed}/{testResults.summary?.total ?? testResults.total} Passed
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {(testResults.tests || testResults.results || []).map((t: any, idx: number) => {
+                  const isPassed = t.status === 'passed' || t.passed === true;
+                  return (
+                    <div
+                      key={t.id || idx}
+                      style={{
+                        background: isPassed ? 'rgba(16, 185, 129, 0.06)' : 'rgba(239, 68, 68, 0.08)',
+                        padding: '10px 12px',
+                        borderRadius: '6px',
+                        border: isPassed ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid rgba(239, 68, 68, 0.3)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 700, marginBottom: '4px' }}>
+                        <span style={{ color: isPassed ? '#6ee7b7' : '#fca5a5', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          {isPassed ? <CheckCircle2 size={14} /> : <XCircle size={14} />}
+                          {t.name || `Scenario #${idx + 1}`}
+                        </span>
+                        <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: isPassed ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)', color: isPassed ? '#6ee7b7' : '#fca5a5' }}>
+                          {(t.status || (isPassed ? 'passed' : 'failed')).toUpperCase()}
+                        </span>
+                      </div>
+                      <div style={{ color: '#cbd5e1', fontSize: '0.72rem', marginTop: '2px' }}>
+                        <strong>Query:</strong> "{t.query || t.inputQuery}"
+                      </div>
+                      <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', marginTop: '2px' }}>
+                        {t.details || `Expected: "${t.expected || t.expectedAns}"`}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

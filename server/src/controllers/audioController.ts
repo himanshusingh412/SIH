@@ -2,14 +2,15 @@ import { Request, Response } from 'express';
 import { getAudioProvider } from '../ai/providers/audioProvider';
 import { mediaService } from '../services/mediaService';
 import { prisma } from '../config';
+import { sendSuccess, sendError } from '../utils/response';
 
 export const getVoicesHandler = async (req: Request, res: Response): Promise<void> => {
   try {
     const audioProvider = getAudioProvider();
     const voices = await audioProvider.getVoices();
-    res.json({ success: true, voices });
+    sendSuccess(res, { voices });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    sendError(res, error.message || 'Failed to fetch voices', 500, 'GET_VOICES_FAILED');
   }
 };
 
@@ -17,7 +18,7 @@ export const ttsHandler = async (req: Request, res: Response): Promise<void> => 
   try {
     const { projectId, text, voiceId, stability, similarity, style } = req.body;
     if (!text) {
-      res.status(400).json({ success: false, error: 'text is required' });
+      sendError(res, 'text is required', 400, 'INVALID_REQUEST');
       return;
     }
 
@@ -67,13 +68,12 @@ export const ttsHandler = async (req: Request, res: Response): Promise<void> => 
       },
     });
 
-    res.json({
-      success: true,
+    sendSuccess(res, {
       generation: voiceGen,
       audioUrl: media.publicUrl,
     });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    sendError(res, error.message || 'TTS generation failed', 500, 'TTS_FAILED');
   }
 };
 
@@ -93,13 +93,12 @@ export const transcribeHandler = async (req: Request, res: Response): Promise<vo
       provider: audioProvider.name,
     });
 
-    res.json({
-      success: true,
+    sendSuccess(res, {
       transcript: result,
       mediaAsset: media.asset,
     });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    sendError(res, error.message || 'Audio transcription failed', 500, 'TRANSCRIPTION_FAILED');
   }
 };
 
@@ -133,9 +132,9 @@ export const musicHandler = async (req: Request, res: Response): Promise<void> =
       },
     });
 
-    res.json({ success: true, music: musicGen, audioUrl: media.publicUrl });
+    sendSuccess(res, { music: musicGen, audioUrl: media.publicUrl });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    sendError(res, error.message || 'Music generation failed', 500, 'MUSIC_FAILED');
   }
 };
 
@@ -163,9 +162,9 @@ export const sfxHandler = async (req: Request, res: Response): Promise<void> => 
       },
     });
 
-    res.json({ success: true, sfx: sfxGen, audioUrl: media.publicUrl });
+    sendSuccess(res, { sfx: sfxGen, audioUrl: media.publicUrl });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    sendError(res, error.message || 'SFX generation failed', 500, 'SFX_FAILED');
   }
 };
 
@@ -174,7 +173,6 @@ export const dubbingHandler = async (req: Request, res: Response): Promise<void>
     const { projectId, sourceText, targetLanguage } = req.body;
     const audioProvider = getAudioProvider();
 
-    // Translate & Dub
     const translatedText = `[${(targetLanguage || 'hi').toUpperCase()}] ${sourceText || 'Incident debrief text'}`;
     const ttsResult = await audioProvider.generateTTS({
       text: translatedText,
@@ -208,14 +206,13 @@ export const dubbingHandler = async (req: Request, res: Response): Promise<void>
       include: { tracks: true },
     });
 
-    res.json({
-      success: true,
+    sendSuccess(res, {
       dubbing: dubbingProj,
       audioUrl: media.publicUrl,
       factLocksPassed: true,
     });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    sendError(res, error.message || 'Dubbing failed', 500, 'DUBBING_FAILED');
   }
 };
 
@@ -236,9 +233,9 @@ export const cloneVoiceHandler = async (req: Request, res: Response): Promise<vo
         consentConfirmed: true,
       },
     });
-    res.json({ success: true, voice: voiceRecord });
+    sendSuccess(res, { voice: voiceRecord });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    sendError(res, error.message || 'Voice cloning failed', 500, 'VOICE_CLONE_FAILED');
   }
 };
 
@@ -246,8 +243,8 @@ export const getMediaAssetsHandler = async (req: Request, res: Response): Promis
   try {
     const targetProjectId = typeof req.params.projectId === 'string' ? req.params.projectId : (typeof req.query.projectId === 'string' ? req.query.projectId : '');
     const assets = await mediaService.getProjectMediaAssets(targetProjectId);
-    res.json({ success: true, assets });
+    sendSuccess(res, { assets });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    sendError(res, error.message || 'Failed to fetch media assets', 500, 'GET_MEDIA_FAILED');
   }
 };

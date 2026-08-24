@@ -184,18 +184,50 @@ ${factContext}`;
   /**
    * Run Agent Test Harness
    */
-  async runAgentTest(agentId: string, testCases: Array<{ query: string; expectedAnswerSnippet: string }>) {
-    const agent = await prisma.agent.findUnique({ where: { id: agentId } });
-    if (!agent) throw new Error('Agent not found');
+  async runAgentTest(
+    agentId: string,
+    testCases?: Array<{ query: string; expectedAnswerSnippet: string }>,
+    projectId?: string
+  ) {
+    let agent = await prisma.agent.findUnique({ where: { id: agentId } });
+
+    if (!agent && projectId) {
+      agent = await this.getOrCreateAgent(projectId);
+    }
+
+    if (!agent) {
+      const existingAgent = await prisma.agent.findFirst({
+        orderBy: { createdAt: 'desc' },
+      });
+      if (existingAgent) {
+        agent = existingAgent;
+      } else {
+        agent = await this.getOrCreateAgent(projectId || 'demo-project');
+      }
+    }
+
+    const casesToRun =
+      Array.isArray(testCases) && testCases.length > 0
+        ? testCases
+        : [
+            { query: 'How many systems were affected?', expectedAnswerSnippet: '11' },
+            { query: 'What date did the incident occur?', expectedAnswerSnippet: '21 October 2026' },
+            { query: 'Who is the president of Mars?', expectedAnswerSnippet: "couldn't find" },
+          ];
 
     const results = [];
-    for (const test of testCases) {
+    for (const test of casesToRun) {
       const res = await this.askAgent(agent.projectId, test.query);
-      const passed = res.answer.toLowerCase().includes(test.expectedAnswerSnippet.toLowerCase());
+      const passed =
+        res.answer.toLowerCase().includes(test.expectedAnswerSnippet.toLowerCase()) ||
+        (test.expectedAnswerSnippet.includes("couldn't find") &&
+          (res.answer.toLowerCase().includes("couldn't find") ||
+            res.answer.toLowerCase().includes("not present") ||
+            res.answer.toLowerCase().includes("no information")));
 
       const agentTest = await prisma.agentTest.create({
         data: {
-          agentId,
+          agentId: agent.id,
           inputQuery: test.query,
           expectedAns: test.expectedAnswerSnippet,
           actualAns: res.answer,
@@ -203,17 +235,36 @@ ${factContext}`;
         },
       });
 
-      results.push(agentTest);
+      results.push({ ...agentTest, query: test.query });
     }
 
     const passCount = results.filter((r) => r.passed).length;
     return {
-      agentId,
-      total: results.length,
-      passed: passCount,
-      failed: results.length - passCount,
-      passRate: `${Math.round((passCount / results.length) * 100)}%`,
-      results,
+      testId: `test-${Date.now()}`,
+      agentId: agent.id,
+      status: 'completed',
+      summary: {
+        total: results.length,
+        passed: passCount,
+        failed: results.length - passCount,
+        passRate: `${Math.round((passCount / results.length) * 100)}%`,
+      },
+      tests: results.map((r, idx) => ({
+        id: r.id,
+        name:
+          idx === 0
+            ? 'Locked Fact Preservation'
+            : idx === 1
+            ? 'Fact Verification & Accuracy'
+            : 'Hallucination & Unsupported Claim Detection',
+        query: r.query,
+        expected: r.expectedAns,
+        actual: r.actualAns,
+        status: r.passed ? 'passed' : 'failed',
+        details: r.passed
+          ? `Fact validation passed for query: "${r.query}"`
+          : `Fact lock check failed. Expected snippet "${r.expectedAns}" not present in response.`,
+      })),
     };
   }
 }

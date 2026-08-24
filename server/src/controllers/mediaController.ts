@@ -4,6 +4,7 @@ import path from 'path';
 import multer from 'multer';
 import { PrismaClient } from '@prisma/client';
 import { probeVideo, convertMovToMp4, ConversionHandle } from '../engine/formatEngine/converters/videoConverter';
+import { sendSuccess, sendError } from '../utils/response';
 
 const prisma = new PrismaClient();
 
@@ -38,7 +39,7 @@ const activeConversions = new Map<string, ConversionHandle>();
 export const uploadSourceMedia = async (req: Request, res: Response): Promise<void> => {
   try {
     if (!req.file) {
-      res.status(400).json({ error: 'No video file provided in request body.' });
+      sendError(res, 'No video file provided in request body.', 400, 'NO_FILE');
       return;
     }
 
@@ -49,7 +50,7 @@ export const uploadSourceMedia = async (req: Request, res: Response): Promise<vo
     // Enforce .mov extension check
     if (ext !== '.mov' && ext !== '.qt') {
       if (fs.existsSync(filePath)) try { fs.unlinkSync(filePath); } catch (_) {}
-      res.status(400).json({ error: 'Invalid file format: File extension must be .mov' });
+      sendError(res, 'Invalid file format: File extension must be .mov', 400, 'INVALID_FORMAT');
       return;
     }
 
@@ -59,9 +60,7 @@ export const uploadSourceMedia = async (req: Request, res: Response): Promise<vo
       metadata = await probeVideo(filePath);
     } catch (probeErr: any) {
       if (fs.existsSync(filePath)) try { fs.unlinkSync(filePath); } catch (_) {}
-      res.status(400).json({
-        error: `Input Validation Failed: ${probeErr.message}`,
-      });
+      sendError(res, `Input Validation Failed: ${probeErr.message}`, 400, 'PROBE_FAILED');
       return;
     }
 
@@ -91,8 +90,7 @@ export const uploadSourceMedia = async (req: Request, res: Response): Promise<vo
       },
     });
 
-    res.json({
-      success: true,
+    sendSuccess(res, {
       mediaAsset: {
         id: mediaAsset.id,
         filename: originalName,
@@ -102,7 +100,7 @@ export const uploadSourceMedia = async (req: Request, res: Response): Promise<vo
       },
     });
   } catch (err: any) {
-    res.status(500).json({ error: `Upload processing failed: ${err.message}` });
+    sendError(res, `Upload processing failed: ${err.message}`, 500, 'UPLOAD_FAILED');
   }
 };
 
@@ -123,12 +121,12 @@ export const convertMedia = async (req: Request, res: Response): Promise<void> =
     } = req.body;
 
     if (!sourceAssetId) {
-      res.status(400).json({ error: 'sourceAssetId is required.' });
+      sendError(res, 'sourceAssetId is required.', 400, 'INVALID_REQUEST');
       return;
     }
 
     if (String(targetFormat).toLowerCase() !== 'mp4') {
-      res.status(400).json({ error: 'Unsupported target format. Only MP4 conversion is supported.' });
+      sendError(res, 'Unsupported target format. Only MP4 conversion is supported.', 400, 'UNSUPPORTED_FORMAT');
       return;
     }
 
@@ -140,12 +138,12 @@ export const convertMedia = async (req: Request, res: Response): Promise<void> =
     });
 
     if (!sourceAsset) {
-      res.status(404).json({ error: 'Source media asset not found.' });
+      sendError(res, 'Source media asset not found.', 404, 'ASSET_NOT_FOUND');
       return;
     }
 
     if (!fs.existsSync(sourceAsset.storageLocation)) {
-      res.status(404).json({ error: 'Source video file missing from server storage.' });
+      sendError(res, 'Source video file missing from server storage.', 404, 'FILE_NOT_FOUND');
       return;
     }
 
@@ -248,8 +246,8 @@ export const convertMedia = async (req: Request, res: Response): Promise<void> =
         } catch (_) {}
       });
 
-    res.status(202).json({
-      success: true,
+    res.status(202);
+    sendSuccess(res, {
       conversionId: conversion.id,
       status: 'PROCESSING',
       progress: 0,
@@ -259,9 +257,9 @@ export const convertMedia = async (req: Request, res: Response): Promise<void> =
         sizeBytes: sourceAsset.sizeBytes,
         metadata: parsedSourceMeta,
       },
-    });
+    }, 202);
   } catch (err: any) {
-    res.status(500).json({ error: `Conversion request failed: ${err.message}` });
+    sendError(res, `Conversion request failed: ${err.message}`, 500, 'CONVERSION_FAILED');
   }
 };
 
@@ -281,12 +279,11 @@ export const getConversionStatus = async (req: Request, res: Response): Promise<
     })) as any;
 
     if (!conversion) {
-      res.status(404).json({ error: 'Media conversion job not found.' });
+      sendError(res, 'Media conversion job not found.', 404, 'NOT_FOUND');
       return;
     }
 
-    res.json({
-      success: true,
+    sendSuccess(res, {
       conversion: {
         id: conversion.id,
         status: conversion.status,
@@ -307,7 +304,7 @@ export const getConversionStatus = async (req: Request, res: Response): Promise<
       },
     });
   } catch (err: any) {
-    res.status(500).json({ error: `Failed to fetch conversion status: ${err.message}` });
+    sendError(res, `Failed to fetch conversion status: ${err.message}`, 500, 'GET_STATUS_FAILED');
   }
 };
 
@@ -323,7 +320,7 @@ export const cancelConversion = async (req: Request, res: Response): Promise<voi
     });
 
     if (!conversion) {
-      res.status(404).json({ error: 'Media conversion job not found.' });
+      sendError(res, 'Media conversion job not found.', 404, 'NOT_FOUND');
       return;
     }
 
@@ -345,9 +342,9 @@ export const cancelConversion = async (req: Request, res: Response): Promise<voi
       });
     }
 
-    res.json({ success: true, message: 'Conversion process cancelled successfully.' });
+    sendSuccess(res, { message: 'Conversion process cancelled successfully.' });
   } catch (err: any) {
-    res.status(500).json({ error: `Failed to cancel conversion: ${err.message}` });
+    sendError(res, `Failed to cancel conversion: ${err.message}`, 500, 'CANCEL_FAILED');
   }
 };
 
@@ -363,7 +360,7 @@ export const streamMediaFile = async (req: Request, res: Response): Promise<void
     });
 
     if (!mediaAsset || !fs.existsSync(mediaAsset.storageLocation)) {
-      res.status(404).json({ error: 'Media asset file not found on server.' });
+      sendError(res, 'Media asset file not found on server.', 404, 'NOT_FOUND');
       return;
     }
 
@@ -397,7 +394,7 @@ export const streamMediaFile = async (req: Request, res: Response): Promise<void
       fs.createReadStream(filePath).pipe(res);
     }
   } catch (err: any) {
-    res.status(500).json({ error: `Streaming failed: ${err.message}` });
+    sendError(res, `Streaming failed: ${err.message}`, 500, 'STREAM_FAILED');
   }
 };
 
@@ -413,7 +410,7 @@ export const downloadMediaFile = async (req: Request, res: Response): Promise<vo
     });
 
     if (!mediaAsset || !fs.existsSync(mediaAsset.storageLocation)) {
-      res.status(404).json({ error: 'Media asset file not found on server.' });
+      sendError(res, 'Media asset file not found on server.', 404, 'NOT_FOUND');
       return;
     }
 
@@ -422,7 +419,7 @@ export const downloadMediaFile = async (req: Request, res: Response): Promise<vo
 
     res.download(mediaAsset.storageLocation, downloadName);
   } catch (err: any) {
-    res.status(500).json({ error: `Download failed: ${err.message}` });
+    sendError(res, `Download failed: ${err.message}`, 500, 'DOWNLOAD_FAILED');
   }
 };
 
@@ -450,9 +447,9 @@ export const listMediaAssets = async (req: Request, res: Response): Promise<void
       orderBy: { createdAt: 'desc' },
     });
 
-    res.json({ success: true, assets, conversions });
+    sendSuccess(res, { assets, conversions });
   } catch (err: any) {
-    res.status(500).json({ error: `Failed to list media library: ${err.message}` });
+    sendError(res, `Failed to list media library: ${err.message}`, 500, 'LIST_MEDIA_FAILED');
   }
 };
 
@@ -468,7 +465,7 @@ export const deleteMediaAsset = async (req: Request, res: Response): Promise<voi
     });
 
     if (!asset) {
-      res.status(404).json({ error: 'Media asset not found.' });
+      sendError(res, 'Media asset not found.', 404, 'NOT_FOUND');
       return;
     }
 
@@ -478,8 +475,8 @@ export const deleteMediaAsset = async (req: Request, res: Response): Promise<voi
 
     await prisma.mediaAsset.delete({ where: { id } });
 
-    res.json({ success: true, message: 'Media asset deleted successfully.' });
+    sendSuccess(res, { message: 'Media asset deleted successfully.' });
   } catch (err: any) {
-    res.status(500).json({ error: `Failed to delete media asset: ${err.message}` });
+    sendError(res, `Failed to delete media asset: ${err.message}`, 500, 'DELETE_MEDIA_FAILED');
   }
 };

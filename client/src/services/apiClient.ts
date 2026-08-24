@@ -6,7 +6,7 @@ export class ApiError extends Error {
   statusCode: number;
   details: any;
 
-  constructor(message: string, statusCode = 500, details = null) {
+  constructor(message: string, statusCode = 500, details: any = null) {
     super(message);
     this.name = 'ApiError';
     this.statusCode = statusCode;
@@ -23,14 +23,31 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
       },
     });
 
-    const json = await res.json();
+    const contentType = res.headers.get('content-type') || '';
+    let json: any;
 
-    if (!res.ok || !json.success) {
-      const msg = json?.error?.message || `HTTP ${res.status} Error`;
-      throw new ApiError(msg, res.status, json?.error?.details);
+    if (contentType.includes('application/json')) {
+      json = await res.json();
+    } else {
+      const text = await res.text();
+      json = {
+        success: false,
+        error: {
+          code: 'INVALID_API_RESPONSE',
+          message: text ? text.substring(0, 200) : 'The server returned an unparseable non-JSON response.',
+        },
+      };
     }
 
-    return json.data || json;
+    if (!res.ok || json.success === false) {
+      const msg =
+        json?.error?.message ||
+        (typeof json?.error === 'string' ? json.error : `HTTP ${res.status} Error`);
+      const code = json?.error?.code || 'API_ERROR';
+      throw new ApiError(msg, res.status, { code, details: json?.error?.details });
+    }
+
+    return json.data !== undefined ? json.data : json;
   } catch (err: any) {
     if (err instanceof ApiError) throw err;
     throw new ApiError(err.message || 'Network communication error', 500);
@@ -169,6 +186,19 @@ export const apiClient = {
   deleteMediaAsset: (assetId: string) =>
     request<{ success: boolean; message: string }>(`/media/${assetId}`, {
       method: 'DELETE',
+    }),
+
+  runAgentTest: (projectId?: string, agentId?: string, testCases?: any[]) =>
+    request<{
+      testId: string;
+      agentId: string;
+      status: string;
+      summary: { total: number; passed: number; failed: number; passRate: string };
+      tests: Array<{ id: string; name: string; query: string; expected: string; actual: string; status: string; details: string }>;
+    }>('/agents/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId, agentId: agentId || 'demo-agent-id', testCases }),
     }),
 
   getMediaStreamUrl: (assetId: string) => `${API_BASE}/media/stream/${assetId}`,
