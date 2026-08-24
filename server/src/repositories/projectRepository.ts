@@ -1,7 +1,9 @@
 import { prisma } from '../config';
+import { ensureDbSchema } from '../config/dbInit';
 
 export class ProjectRepository {
   async createProject(title: string, description?: string, userId?: string) {
+    await ensureDbSchema();
     return prisma.project.create({
       data: {
         title,
@@ -12,6 +14,7 @@ export class ProjectRepository {
   }
 
   async findProjectById(projectId: string) {
+    await ensureDbSchema();
     return prisma.project.findUnique({
       where: { id: projectId },
       include: {
