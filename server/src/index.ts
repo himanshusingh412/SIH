@@ -6,6 +6,7 @@ import { ensureDbSchema } from './config/dbInit';
 import { errorHandler, requestLogger } from './middleware/errorHandler';
 import { rateLimiter, securityHeaders } from './middleware/security';
 import agentRoutes from './routes/agentRoutes';
+import aiProviderRoutes from './routes/aiProviderRoutes';
 import projectRoutes from './routes/projectRoutes';
 import resumeRoutes from './routes/resumeRoutes';
 
@@ -80,15 +81,18 @@ app.get('/health', healthHandler);
 app.get('/api/health/ai', aiHealthHandler);
 app.get('/health/ai', aiHealthHandler);
 
-// Mount Routes under both /api and root / for Vercel serverless rewrite compatibility
-app.use('/api', projectRoutes);
-app.use('/', projectRoutes);
+// Mount Specific Routes BEFORE Generic Catch-All Routes
+app.use('/api/ai', aiProviderRoutes);
+app.use('/ai', aiProviderRoutes);
+
+app.use('/api/agents', agentRoutes);
+app.use('/agents', agentRoutes);
 
 app.use('/api', resumeRoutes);
 app.use('/', resumeRoutes);
 
-app.use('/api/agents', agentRoutes);
-app.use('/agents', agentRoutes);
+app.use('/api', projectRoutes);
+app.use('/', projectRoutes);
 
 // Global Error Handler
 app.use(errorHandler);

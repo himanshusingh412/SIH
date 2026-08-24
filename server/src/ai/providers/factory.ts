@@ -15,11 +15,18 @@ const instances: Record<ProviderType, AIProviderInstance> = {
 };
 
 export function getAIProviderInstance(type?: ProviderType): AIProviderInstance {
-  const selectedType = type || currentProviderType;
-  return instances[selectedType] || instances.GEMINI;
+  const selectedType = type ? (type.toUpperCase() as ProviderType) : currentProviderType;
+  if (!instances[selectedType]) {
+    throw new Error(`INVALID_PROVIDER: Unknown AI provider '${type}' requested.`);
+  }
+  return instances[selectedType];
 }
 
 export function setAIProviderInstance(type: ProviderType): AIProviderInstance {
-  currentProviderType = type;
+  const upper = type.toUpperCase() as ProviderType;
+  if (!instances[upper]) {
+    throw new Error(`INVALID_PROVIDER: Unknown AI provider '${type}' requested.`);
+  }
+  currentProviderType = upper;
   return instances[currentProviderType];
 }

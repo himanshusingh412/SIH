@@ -83,7 +83,7 @@ export function App() {
   ) => {
     setSelectedOutputTypes(types);
     setRoute('generation');
-    await generate(types, audience);
+    await generate(types, audience, selectedProvider);
   };
 
   const handleGenerationComplete = () => {
@@ -310,7 +310,7 @@ export function App() {
                   setAutoFixAttempt((prev) => Math.min(prev + 1, 3));
                   await autoFix();
                 }}
-                onRegenerateOutput={(type) => regenerateSingle(type, 'EXECUTIVE')}
+                onRegenerateOutput={(type) => regenerateSingle(type, 'EXECUTIVE', selectedProvider)}
                 onInjectTestErrors={(injections) => injectErrors(injections)}
                 onOpenExport={() => setShowExportModal(true)}
                 isFixing={isLoading}

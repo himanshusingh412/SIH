@@ -156,7 +156,8 @@ export class ProjectService {
   async generateOutputs(
     projectId: string,
     outputTypes: OutputType[],
-    audience: AudienceProfile
+    audience: AudienceProfile,
+    providerName?: string
   ) {
     const project = await this.repo.findProjectById(projectId);
     if (!project) throw new Error('Project not found');
@@ -170,7 +171,7 @@ export class ProjectService {
 
       const spineData = this.buildSpineData(latestSpine, facts, entities);
 
-      const provider = getAIProvider();
+      const provider = getAIProvider(providerName);
       const generatedResults = [];
 
       for (const type of outputTypes) {

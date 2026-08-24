@@ -94,12 +94,12 @@ export function useProject() {
   );
 
   const generate = useCallback(
-    async (types: OutputType[], audience: AudienceProfile) => {
+    async (types: OutputType[], audience: AudienceProfile, provider?: string) => {
       if (!projectId) return null;
       setIsLoading(true);
       setError(null);
       try {
-        await apiClient.generateOutputs(projectId, types, audience);
+        await apiClient.generateOutputs(projectId, types, audience, provider);
         const res = await apiClient.getProject(projectId);
         setProjectData(res.project);
         return res.project;
@@ -114,12 +114,12 @@ export function useProject() {
   );
 
   const regenerateSingle = useCallback(
-    async (type: OutputType, audience: AudienceProfile) => {
+    async (type: OutputType, audience: AudienceProfile, provider?: string) => {
       if (!projectId) return null;
       setIsLoading(true);
       setError(null);
       try {
-        await apiClient.regenerateOutput(projectId, type, audience);
+        await apiClient.regenerateOutput(projectId, type, audience, provider);
         const res = await apiClient.getProject(projectId);
         setProjectData(res.project);
         return res.project;

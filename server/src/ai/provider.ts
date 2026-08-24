@@ -6,9 +6,11 @@ import { ProviderType } from './providers/types';
 export function getAIProvider(providerName?: string): AIProvider {
   let type: ProviderType = (config.aiProvider?.toUpperCase() as ProviderType) || 'GEMINI';
   if (providerName) {
-    const upper = providerName.toUpperCase();
+    const upper = providerName.trim().toUpperCase();
     if (['MOCK', 'GEMINI', 'OPENAI', 'LLAMA'].includes(upper)) {
       type = upper as ProviderType;
+    } else {
+      throw new Error(`INVALID_PROVIDER: Unknown AI provider '${providerName}'. Valid options: gemini, openai, mock.`);
     }
   }
 

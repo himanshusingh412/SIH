@@ -1,57 +1,124 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { config } from '../../config';
 import { AudienceProfile, ContentSpineData, InputCategory, OutputType, ValidationIssue } from '../../types';
-import { MockProvider } from './mockProvider';
 import { AIProviderInstance, ProviderType } from './types';
 
 export class GeminiProvider implements AIProviderInstance {
   name = 'Google Gemini AI Provider';
   type: ProviderType = 'GEMINI';
-  private fallbackMock = new MockProvider();
+
+  private getApiKey(): string {
+    return config.aiApiKey || config.geminiApiKey || '';
+  }
 
   private getModelName(): string {
     return config.aiModel || 'gemini-3.1-flash-lite';
   }
 
-  async generateText(prompt: string): Promise<string> {
-    const apiKey = config.aiApiKey || config.geminiApiKey;
-    if (!apiKey || config.demoMode) {
-      return this.fallbackMock.generateText(prompt);
+  /**
+   * Health/Connectivity Test
+   */
+  async testConnection(): Promise<{ success: boolean; model: string; message?: string }> {
+    const apiKey = this.getApiKey();
+    if (!apiKey) {
+      return {
+        success: false,
+        model: this.getModelName(),
+        message: 'Gemini API key is not configured on the server.',
+      };
     }
 
     try {
-      const modelName = this.getModelName();
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: modelName });
-      const result = await model.generateContent(prompt);
-      return result.response.text() || 'Gemini text response generated.';
+      const model = genAI.getGenerativeModel({ model: this.getModelName() });
+      await model.generateContent('ping');
+      return {
+        success: true,
+        model: this.getModelName(),
+      };
     } catch (err: any) {
-      if (!config.demoMode && apiKey) {
-        throw new Error(`Gemini generateText API Error (${this.getModelName()}): ${err.message || err}`);
+      return {
+        success: false,
+        model: this.getModelName(),
+        message: err.message || 'Failed to connect to Google Gemini API.',
+      };
+    }
+  }
+
+  async generateText(prompt: string): Promise<string> {
+    const apiKey = this.getApiKey();
+    if (!apiKey) {
+      throw new Error('Gemini is currently unavailable. (AI_API_KEY is missing on server)');
+    }
+
+    try {
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: this.getModelName() });
+      const result = await model.generateContent(prompt);
+      const text = result.response.text();
+      if (!text) {
+        throw new Error('Gemini returned an empty text response.');
       }
-      return this.fallbackMock.generateText(prompt);
+      return text;
+    } catch (err: any) {
+      throw new Error(`Gemini is currently unavailable: ${err.message || err}`);
     }
   }
 
   async extractContentSpine(rawText: string, category: InputCategory): Promise<ContentSpineData> {
-    const apiKey = config.aiApiKey || config.geminiApiKey;
-    if (!apiKey || config.demoMode) {
-      return this.fallbackMock.extractContentSpine(rawText, category);
+    const apiKey = this.getApiKey();
+    if (!apiKey) {
+      throw new Error('Gemini is currently unavailable. (AI_API_KEY is missing on server)');
     }
 
     try {
-      const modelName = this.getModelName();
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: modelName });
-      const prompt = `Extract a Content Spine JSON from this text:\n\n${rawText.slice(0, 4000)}`;
+      const model = genAI.getGenerativeModel({ model: this.getModelName() });
+      const prompt = `System Guardrail: You are ContentSpine AI Extraction Engine. Extract structured Content Spine from this ${category} text.
+Return ONLY valid JSON matching this schema:
+{
+  "summary": "High-level executive summary...",
+  "entities": [{ "id": "e1", "name": "...", "type": "ORGANIZATION", "confidence": 0.95, "sourceReference": "p. 1" }],
+  "dates": [{ "id": "f1", "key": "Date", "value": "2026-08-24", "category": "DATE", "isLocked": true, "sourceSnippet": "2026-08-24" }],
+  "numbers": [{ "id": "f2", "key": "Affected Systems", "value": "11", "category": "NUMBER", "isLocked": true, "sourceSnippet": "11 systems" }],
+  "locations": [],
+  "events": [],
+  "risks": ["Risk assessment point"],
+  "recommendations": ["Recommendation point"],
+  "claims": [],
+  "relationships": [],
+  "factLocks": []
+}
+
+Source Content (${category}):
+${rawText.slice(0, 5000)}`;
+
       const result = await model.generateContent(prompt);
       const text = result.response.text();
-      return this.fallbackMock.extractContentSpine(text || rawText, category);
-    } catch (err: any) {
-      if (!config.demoMode && apiKey) {
-        throw new Error(`Gemini Provider API Error (${this.getModelName()}): ${err.message || err}`);
+      
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (parsed && parsed.summary) {
+          const lockedFacts = [...(parsed.dates || []), ...(parsed.numbers || [])].map((f) => ({ ...f, isLocked: true }));
+          return {
+            summary: parsed.summary,
+            entities: parsed.entities || [],
+            dates: parsed.dates || [],
+            numbers: parsed.numbers || [],
+            locations: parsed.locations || [],
+            events: parsed.events || [],
+            risks: parsed.risks || [],
+            recommendations: parsed.recommendations || [],
+            claims: parsed.claims || [],
+            relationships: parsed.relationships || [],
+            factLocks: lockedFacts,
+          };
+        }
       }
-      return this.fallbackMock.extractContentSpine(rawText, category);
+      throw new Error('Gemini output could not be parsed into valid Content Spine JSON format.');
+    } catch (err: any) {
+      throw new Error(`Gemini extraction failed: ${err.message || err}`);
     }
   }
 
@@ -60,26 +127,32 @@ export class GeminiProvider implements AIProviderInstance {
     outputType: OutputType,
     audience: AudienceProfile
   ): Promise<{ title: string; content: string }> {
-    const apiKey = config.aiApiKey || config.geminiApiKey;
-    if (!apiKey || config.demoMode) {
-      return this.fallbackMock.generateOutput(spine, outputType, audience);
+    const apiKey = this.getApiKey();
+    if (!apiKey) {
+      throw new Error('Gemini is currently unavailable. (AI_API_KEY is missing on server)');
     }
 
     try {
-      const modelName = this.getModelName();
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: modelName });
+      const model = genAI.getGenerativeModel({ model: this.getModelName() });
       const lockedFacts = (spine.factLocks || [])
         .filter((f) => f.isLocked)
         .map((f) => `${f.key}: ${f.value}`)
-        .join(', ');
+        .join('\n');
 
-      const prompt = `You are an AI deliverable generator for SIH 2026. Generate a ${outputType} for audience ${audience}.
-HARD CONSTRAINTS:
-- Do NOT change locked facts: ${lockedFacts}
-- Content Spine summary: ${spine.summary}
+      const prompt = `System Role: ContentSpine AI Deliverable Generator (${this.getModelName()}).
+Task: Generate a ${outputType} deliverable for target audience: ${audience}.
 
-Provide formatted deliverable content.`;
+IMMUTABLE FACT LOCK RULES:
+You MUST preserve all locked facts exactly as written. Never alter, round, or contradict these values:
+${lockedFacts || 'None specified'}
+
+SOURCE CONTENT SUMMARY:
+${spine.summary}
+
+FORMATTING INSTRUCTIONS:
+- Return clear, professional, production-ready markdown content.
+- Do NOT add disclaimers or meta commentary.`;
 
       const result = await model.generateContent(prompt);
       const text = result.response.text();
@@ -87,23 +160,21 @@ Provide formatted deliverable content.`;
         .split('_')
         .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
         .join(' ');
+
       return {
         title: `${formattedType} (Gemini)`,
         content: text || 'Gemini output generation completed.',
       };
     } catch (err: any) {
-      if (!config.demoMode && apiKey) {
-        throw new Error(`Gemini Generation API Error (${this.getModelName()}): ${err.message || err}`);
-      }
-      return this.fallbackMock.generateOutput(spine, outputType, audience);
+      throw new Error(`Gemini is currently unavailable: ${err.message || err}`);
     }
   }
 
   async validateOutput(
-    spine: ContentSpineData,
-    outputType: OutputType,
-    content: string
+    _spine: ContentSpineData,
+    _outputType: OutputType,
+    _content: string
   ): Promise<ValidationIssue[]> {
-    return this.fallbackMock.validateOutput(spine, outputType, content);
+    return [];
   }
 }

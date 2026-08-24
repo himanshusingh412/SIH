@@ -34,14 +34,21 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     let json: any;
 
     if (contentType.includes('application/json')) {
-      json = await res.json();
+      try {
+        json = await res.json();
+      } catch {
+        json = {
+          success: false,
+          error: { code: 'INVALID_JSON', message: 'The server returned invalid JSON data.' },
+        };
+      }
     } else {
       const text = await res.text();
       json = {
         success: false,
         error: {
           code: 'INVALID_API_RESPONSE',
-          message: text ? text.substring(0, 200) : 'The server returned an unparseable non-JSON response.',
+          message: text && !text.startsWith('<') ? text.substring(0, 200) : `The server returned HTTP ${res.status} error.`,
         },
       };
     }
@@ -62,47 +69,82 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 }
 
 export const apiClient = {
-  // Health Check
-  checkHealth: () => request<{ success: boolean; service: string; status: string; providers?: any }>('/health'),
-  checkAiHealth: () => request<{ success: boolean; provider: string; model: string; demoMode: boolean }>('/health/ai'),
+  // Health
+  checkHealth: () => request<{ status: string; providers: any }>('/health'),
+  checkAiHealth: () => request<{ provider: string; model: string }>('/health/ai'),
 
-  // Projects
-  listProjects: () => request<{ projects: any[] }>('/projects'),
-  createProject: (title: string, description?: string) =>
-    request<{ project: any }>('/projects', {
+  // AI Providers API
+  getAIProviders: () =>
+    request<{
+      providers: Record<
+        string,
+        { id: string; name: string; model: string; configured?: boolean; available?: boolean }
+      >;
+      defaultProvider: string;
+    }>('/ai/providers'),
+
+  testAIProvider: (provider: string) =>
+    request<{ provider: string; status: string; model?: string }>('/ai/providers/test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, description }),
+      body: JSON.stringify({ provider }),
     }),
-  getProject: (projectId: string) => request<{ project: any }>(`/projects/${projectId}`),
+
+  generateAIOutput: (options: {
+    provider: string;
+    prompt?: string;
+    projectId?: string;
+    contentSpineId?: string;
+    outputType?: OutputType;
+    audience?: AudienceProfile;
+  }) =>
+    request<{
+      provider: string;
+      model: string;
+      title: string;
+      content: string;
+      outputType: OutputType;
+      audience: AudienceProfile;
+      validation: any;
+    }>('/ai/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(options),
+    }),
 
   // Seed Demo
   seedDemo: () =>
-    request<{
-      projectId: string;
-      project: any;
-      spine: any;
-      outputs: any[];
-      validationResult: any;
-    }>('/projects/seed-demo', { method: 'POST' }),
+    request<{ projectId: string; project: any }>('/projects/seed-demo', {
+      method: 'POST',
+    }),
 
-  // Document Ingestion
-  ingestDocument: (projectId: string, category: InputCategory, file: File | null, rawText?: string) => {
-    const formData = new FormData();
-    formData.append('category', category);
-    if (rawText) formData.append('rawText', rawText);
-    if (file) formData.append('file', file);
-
-    return request<{ documentId: string; project: any; spine: any }>(
-      `/projects/${projectId}/ingest`,
-      {
-        method: 'POST',
-        body: formData,
-      }
-    );
+  // Project Endpoints
+  createProject: (titleOrData: string | { title: string; category?: InputCategory; contentText?: string }) => {
+    const body = typeof titleOrData === 'string' ? { title: titleOrData, category: 'PROMPT' } : titleOrData;
+    return request<{ project: any }>('/projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
   },
 
-  // Fact Lock Toggle
+  ingestDocument: (projectId: string, category: InputCategory, file: File | null, rawText: string) => {
+    if (file) {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('category', category);
+      return request<{ project: any }>(`/projects/${projectId}/ingest`, {
+        method: 'POST',
+        body: formData,
+      });
+    }
+    return request<{ project: any }>(`/projects/${projectId}/ingest`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category, rawText }),
+    });
+  },
+
   toggleFactLock: (factId: string, isLocked: boolean) =>
     request<{ fact: any }>(`/fact-locks/${factId}`, {
       method: 'PATCH',
@@ -110,20 +152,50 @@ export const apiClient = {
       body: JSON.stringify({ isLocked }),
     }),
 
-  // Output Generation
-  generateOutputs: (projectId: string, outputTypes: OutputType[], audienceProfile: AudienceProfile) =>
+  uploadFile: (file: File, category: InputCategory, title?: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('category', category);
+    if (title) formData.append('title', title);
+
+    return request<{ project: any }>('/projects/upload', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  getProject: (id: string) => request<{ project: any }>(`/projects/${id}`),
+  listProjects: () => request<{ projects: any[] }>('/projects'),
+  deleteProject: (id: string) => request<{ message: string }>(`/projects/${id}`, { method: 'DELETE' }),
+
+  // Full Pipeline Execution
+  runFullPipeline: (
+    projectId: string,
+    options: {
+      outputTypes: OutputType[];
+      audience: AudienceProfile;
+      provider?: string;
+    }
+  ) =>
+    request<{ project: any; validationResult: any }>(`/projects/${projectId}/process`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(options),
+    }),
+
+  generateOutputs: (projectId: string, outputTypes: OutputType[], audience: AudienceProfile, provider?: string) =>
     request<{ outputs: any[]; validationResult: any }>(`/projects/${projectId}/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ outputTypes, audience: audienceProfile }),
+      body: JSON.stringify({ outputTypes, audience, provider }),
     }),
 
   // Single Output Regeneration
-  regenerateOutput: (projectId: string, outputType: OutputType, audienceProfile: AudienceProfile) =>
+  regenerateOutput: (projectId: string, outputType: OutputType, audienceProfile: AudienceProfile, provider?: string) =>
     request<{ outputs: any[]; validationResult: any }>(`/projects/${projectId}/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ outputTypes: [outputType], audience: audienceProfile }),
+      body: JSON.stringify({ outputTypes: [outputType], audience: audienceProfile, provider }),
     }),
 
   // Standalone Validation Run

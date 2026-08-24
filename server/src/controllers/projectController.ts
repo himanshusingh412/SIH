@@ -153,7 +153,7 @@ export async function generateOutputs(req: Request, res: Response) {
     const projectId = getParam(req.params.id || req.params.projectId);
     if (!projectId) return sendError(res, 'Project ID is required', 400);
 
-    const { outputTypes, audience } = req.body;
+    const { outputTypes, audience, provider } = req.body;
 
     const types: OutputType[] = Array.isArray(outputTypes) && outputTypes.length > 0
       ? outputTypes
@@ -168,7 +168,7 @@ export async function generateOutputs(req: Request, res: Response) {
         ];
     const audienceProfile: AudienceProfile = audience?.name || audience || 'EXECUTIVE';
 
-    const result = await service.generateOutputs(projectId, types, audienceProfile);
+    const result = await service.generateOutputs(projectId, types, audienceProfile, provider);
     return sendSuccess(res, result);
   } catch (err: any) {
     const status = err.message.includes('not found') ? 404 : 500;
