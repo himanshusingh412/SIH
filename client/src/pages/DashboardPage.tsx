@@ -43,9 +43,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           <span className="badge badge-indigo" style={{ marginBottom: '10px', display: 'inline-block' }}>
             SIH 2026 Core Platform
           </span>
-          <h1 style={{ fontSize: 'var(--font-2xl)', fontWeight: 800, marginBottom: '8px' }} className="gradient-text">
+          <h2 style={{ fontSize: 'var(--font-2xl)', fontWeight: 800, marginBottom: '8px' }} className="gradient-text">
             Content Transformation & Fact Lock Platform
-          </h1>
+          </h2>
           <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-base)', maxWidth: '640px', lineHeight: '1.6' }}>
             Upload complex reports once. Build a structured <strong>Content Spine</strong> with an active 
             <strong> Fact Lock Layer</strong>, and generate 7 consistent communication deliverables without fact drift.

@@ -147,13 +147,16 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="export-modal-title"
       style={{
         position: 'fixed',
         top: 0,
         left: 0,
         right: 0,
         bottom: 0,
-        background: 'rgba(0, 0, 0, 0.82)',
+        background: 'rgba(0, 0, 0, 0.85)',
         backdropFilter: 'blur(8px)',
         display: 'flex',
         alignItems: 'center',
@@ -164,6 +167,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       <div className="glass-panel" style={{ width: '640px', padding: '28px', border: '1px solid var(--accent-primary)', position: 'relative' }}>
         <button
           onClick={onClose}
+          aria-label="Close export modal"
           style={{
             position: 'absolute',
             top: '20px',
@@ -174,12 +178,12 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             cursor: 'pointer',
           }}
         >
-          <X size={20} />
+          <X size={20} aria-hidden="true" />
         </button>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
-          <ShieldCheck size={22} color="#6ee7b7" />
-          <h3 style={{ fontSize: '1.35rem', fontWeight: 800 }} className="gradient-text">
+          <ShieldCheck size={22} color="#6ee7b7" aria-hidden="true" />
+          <h3 id="export-modal-title" style={{ fontSize: '1.35rem', fontWeight: 800 }} className="gradient-text">
             Format Engine Export Center
           </h3>
         </div>

@@ -31,7 +31,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
     { id: 'spine', label: 'Content Spine', icon: Database },
     { id: 'workspace', label: 'Review Workspace', icon: Layers },
     { id: 'creative-studio', label: 'Creative Studio', icon: Mic, badge: 'Multimodal' },
-    { id: 'resume-studio', label: 'Resume Studio', icon: FileText, badge: 'ATS Engine' },
+    { id: 'resume-studio', label: 'Resume Studio', icon: FileText, badge: 'ATS' },
     { id: 'agents', label: 'AI Agents', icon: Bot, badge: 'Knowledge' },
     { id: 'history', label: 'History', icon: History },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
@@ -40,6 +40,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
 
   return (
     <aside
+      aria-label="Main Navigation Sidebar"
       style={{
         width: '260px',
         background: 'rgba(12, 16, 28, 0.95)',
@@ -49,6 +50,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
         justifyContent: 'space-between',
         padding: '20px 14px',
         userSelect: 'none',
+        flexShrink: 0,
       }}
     >
       <div>
@@ -67,7 +69,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
           <div
             style={{
               background: 'linear-gradient(135deg, #6366f1, #06b6d4)',
-              borderRadius: '10px',
+              borderRadius: 'var(--radius-md)',
               padding: '8px',
               display: 'flex',
               alignItems: 'center',
@@ -75,7 +77,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
               boxShadow: '0 4px 14px rgba(99, 102, 241, 0.4)',
             }}
           >
-            <Sparkles size={20} color="white" />
+            <Sparkles size={20} color="white" aria-hidden="true" />
           </div>
           <div>
             <div style={{ fontWeight: 800, fontSize: 'var(--font-md)', letterSpacing: '-0.3px' }} className="gradient-text">
@@ -87,7 +89,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
           </div>
         </div>
 
-        {/* Start New Transformation Button (Issue 10) */}
+        {/* Start New Transformation Button */}
         <button
           className="btn-primary"
           onClick={() => onNavigate('new-transformation')}
@@ -98,66 +100,61 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
             height: '40px',
           }}
         >
-          <PlusCircle size={16} />
+          <PlusCircle size={16} aria-hidden="true" />
           <span>New Transformation</span>
         </button>
 
-        {/* Navigation Items (Issue 13 & 14) */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const active = currentRoute === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => onNavigate(item.id)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  padding: '0 12px',
-                  height: '38px', // Fixed height prevents wrapping height changes (Issue 13)
-                  borderRadius: '8px',
-                  background: active ? 'rgba(99, 102, 241, 0.16)' : 'transparent',
-                  color: active ? '#ffffff' : 'var(--text-muted)',
-                  border: active ? '1px solid rgba(99, 102, 241, 0.35)' : '1px solid transparent',
-                  cursor: 'pointer',
-                  fontWeight: active ? 600 : 500,
-                  fontSize: 'var(--font-sm)',
-                  whiteSpace: 'nowrap', // Single line lock (Issue 13)
-                  width: '100%',
-                  justifyContent: 'space-between',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
-                  <Icon size={17} color={active ? '#818cf8' : 'var(--text-muted)'} style={{ flexShrink: 0 }} />
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.label}</span>
-                </div>
-                {item.badge && (
-                  <span className="nav-badge" style={{ flexShrink: 0 }}>
-                    {item.badge}
+        {/* Semantic Navigation List (Issue 2 & 6) */}
+        <nav aria-label="Sidebar Navigation">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const active = currentRoute === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => onNavigate(item.id)}
+                  aria-current={active ? 'page' : undefined}
+                  className="sidebar-nav-item"
+                  style={{
+                    background: active ? 'rgba(99, 102, 241, 0.18)' : 'transparent',
+                    color: active ? '#ffffff' : 'var(--text-muted)',
+                    border: active ? '1px solid rgba(99, 102, 241, 0.35)' : '1px solid transparent',
+                  }}
+                >
+                  <Icon size={17} color={active ? '#818cf8' : 'var(--text-muted)'} style={{ flexShrink: 0 }} aria-hidden="true" />
+                  
+                  {/* Label - Full visibility without clip/truncation (Issue 2) */}
+                  <span className="sidebar-nav-label" style={{ color: active ? '#ffffff' : '#cbd5e1' }}>
+                    {item.label}
                   </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
 
-        {/* Active Project Card in Sidebar (Issue 3 & Issue 6) */}
+                  {/* Badge - Clean Right-aligned alignment (Issue 6) */}
+                  {item.badge && (
+                    <span className="sidebar-nav-badge" aria-hidden="true">
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+
+        {/* Active Project Card in Sidebar */}
         {activeProjectTitle && (
           <div
             style={{
               marginTop: '20px',
               background: 'rgba(255, 255, 255, 0.03)',
               border: '1px solid var(--border-color)',
-              borderRadius: '10px',
+              borderRadius: 'var(--radius-lg)',
               padding: '12px',
             }}
           >
             <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)', fontWeight: 700 }}>
               Active Workspace
             </div>
-            {/* Multi-line display prevents single line truncation (Issue 6) */}
             <div
               style={{
                 fontSize: 'var(--font-sm)',
@@ -176,7 +173,6 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
             >
               {activeProjectTitle}
             </div>
-            {/* Standard sentence case badge removes 19-char all-caps block (Issue 3) */}
             <span className="badge badge-emerald" style={{ fontSize: 'var(--font-xs)', marginTop: '8px', display: 'inline-block' }}>
               Fact Lock Protected
             </span>
@@ -187,10 +183,16 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
       {/* Footer Info */}
       <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }} />
+          <div style={{ width: '8px', height: '8px', borderRadius: 'var(--radius-full)', background: '#10b981' }} aria-hidden="true" />
           <span style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)' }}>ContentSpine v2.0</span>
         </div>
-        <Settings size={16} color="var(--text-muted)" style={{ cursor: 'pointer' }} onClick={() => onNavigate('settings')} />
+        <button
+          onClick={() => onNavigate('settings')}
+          aria-label="Settings"
+          style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', display: 'flex' }}
+        >
+          <Settings size={16} aria-hidden="true" />
+        </button>
       </div>
     </aside>
   );

@@ -4,7 +4,7 @@
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
-  /* Standardized Type Scale (Issue 1) */
+  /* Standardized Type Scale */
   --font-xs: 0.75rem;   /* 12px - Badges, captions, subtext */
   --font-sm: 0.875rem;  /* 14px - Body small, nav items, buttons */
   --font-base: 1rem;    /* 16px - Body text, default inputs */
@@ -13,6 +13,14 @@
   --font-xl: 1.5rem;    /* 24px - Large section headers */
   --font-2xl: 2rem;     /* 32px - Page titles, hero text */
   --font-3xl: 2.25rem;  /* 36px - Metric displays */
+
+  /* Centralized Border Radius Tokens (Max 6 intentional values - Issue 1 & 9) */
+  --radius-sm: 6px;     /* Small controls, code chips, tooltips */
+  --radius-md: 8px;     /* Buttons, input fields, standard controls */
+  --radius-lg: 12px;    /* Cards, glass panels, section boxes */
+  --radius-xl: 16px;    /* Large modals, main containers */
+  --radius-pill: 9999px; /* Badges, status pills, tags */
+  --radius-full: 50%;   /* Circular icons, avatars, status indicators */
   
   --bg-dark: #0b0f19;
   --bg-card: rgba(18, 24, 38, 0.85);
@@ -32,7 +40,7 @@
   --text-muted: #cbd5e1; /* Upgraded for WCAG 2.2 AA Contrast compliance (>7:1 ratio) */
 }
 
-/* Screen Reader Only utility for accessible headings/landmarks */
+/* Screen Reader Only utility for accessible headings/landmarks (Issue 3) */
 .sr-only {
   position: absolute;
   width: 1px;
@@ -43,6 +51,12 @@
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border-width: 0;
+}
+
+/* Visible Focus Ring for Accessibility */
+:focus-visible {
+  outline: 2px solid var(--accent-cyan);
+  outline-offset: 2px;
 }
 
 * {
@@ -67,7 +81,7 @@ body {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
 }
 
 .glass-panel:hover {
@@ -87,7 +101,7 @@ body {
   color: #ffffff;
   border: none;
   padding: 8px 16px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-weight: 600;
   font-size: var(--font-sm);
   cursor: pointer;
@@ -109,7 +123,7 @@ body {
   color: var(--text-main);
   border: 1px solid var(--border-color);
   padding: 8px 16px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-weight: 600;
   font-size: var(--font-sm);
   cursor: pointer;
@@ -130,7 +144,7 @@ body {
   color: var(--text-muted);
   border: 1px solid transparent;
   padding: 8px 14px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-weight: 500;
   font-size: var(--font-sm);
   cursor: pointer;
@@ -147,7 +161,7 @@ body {
 /* Standardized Badges */
 .badge {
   padding: 4px 10px;
-  border-radius: 20px;
+  border-radius: var(--radius-pill);
   font-size: var(--font-xs);
   font-weight: 600;
   letter-spacing: 0.3px;
@@ -177,14 +191,109 @@ body {
   border: 1px solid rgba(244, 63, 94, 0.4);
 }
 
-/* Subdued Sidebar Badge */
-.nav-badge {
+/* Sidebar Nav Item Layout System (Issue 2 & 6) */
+.sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sidebar-nav-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+  font-weight: 600;
+  text-align: left;
+}
+
+.sidebar-nav-badge {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
   font-size: var(--font-xs);
-  padding: 2px 6px;
-  border-radius: 4px;
+  font-weight: 600;
+  white-space: nowrap;
   background: rgba(255, 255, 255, 0.12);
   color: #e2e8f0;
-  font-weight: 600;
+}
+
+/* Rich Markdown Rendering Styles (Issue 4) */
+.markdown-body {
+  color: var(--text-main);
+  line-height: 1.75;
+  font-size: var(--font-base);
+}
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4 {
+  color: #ffffff;
+  font-weight: 800;
+  margin-top: 1.25em;
+  margin-bottom: 0.6em;
+  line-height: 1.3;
+}
+
+.markdown-body h1 { font-size: 1.6rem; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; }
+.markdown-body h2 { font-size: 1.35rem; color: #7dd3fc; }
+.markdown-body h3 { font-size: 1.15rem; color: #a5b4fc; }
+.markdown-body h4 { font-size: 1rem; color: #cbd5e1; }
+
+.markdown-body p { margin-bottom: 1em; }
+.markdown-body strong { color: #ffffff; font-weight: 700; }
+.markdown-body em { color: #cbd5e1; font-style: italic; }
+
+.markdown-body ul, .markdown-body ol {
+  padding-left: 1.5em;
+  margin-bottom: 1em;
+}
+
+.markdown-body li {
+  margin-bottom: 0.35em;
+}
+
+.markdown-body blockquote {
+  border-left: 4px solid var(--accent-primary);
+  padding: 8px 16px;
+  background: rgba(99, 102, 241, 0.08);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  margin: 1em 0;
+  color: #cbd5e1;
+}
+
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  color: #7dd3fc;
+}
+
+.markdown-body pre {
+  background: rgba(0, 0, 0, 0.5);
+  padding: 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  overflow-x: auto;
+  margin: 1em 0;
+}
+
+.markdown-body pre code {
+  background: transparent;
+  padding: 0;
 }
 
 /* Custom Scrollbar */
@@ -197,7 +306,7 @@ body {
 }
 ::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.25);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.4);
