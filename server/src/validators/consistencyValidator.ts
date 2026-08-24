@@ -67,7 +67,7 @@ function extractAllDates(text: string): string[] {
   const found = new Set<string>();
   for (const pattern of DATE_PATTERNS) {
     const matches = text.match(pattern) || [];
-    matches.forEach((m) => found.add(m.trim()));
+    matches.forEach((m: string) => found.add(m.trim()));
   }
   return Array.from(found);
 }
@@ -76,7 +76,7 @@ function extractAllNumbers(text: string): string[] {
   const found = new Set<string>();
   for (const pattern of NUMBER_PATTERNS) {
     const matches = text.match(pattern) || [];
-    matches.forEach((m) => found.add(m.trim()));
+    matches.forEach((m: string) => found.add(m.trim()));
   }
   return Array.from(found).filter((n) => n !== '1' && n !== '0');
 }
