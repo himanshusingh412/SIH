@@ -1,121 +1,159 @@
-# 🚀 SIH 2026 — AI-Powered Content Transformation Engine
+# ContentSpine AI
 
-> **Single Source of Truth (Content Spine) & Fact-Locking Multi-Channel Content Generator**
+> **AI Content Transformation Engine** — Upload a source document, lock facts, and generate multi-format deliverables grounded in verified truth.
 
----
-
-## 📌 Problem & Solution
-
-* **The Problem**: Corporate communications, technical documentation, public advisories, and social media releases derived from single source documents often introduce fact drift, inconsistent dates, altered statistics, and hallucinated claims.
-* **The Solution**: An end-to-end AI platform that ingests raw source material (PDF, DOCX, TXT, Images, JSON), constructs an immutable **Content Spine** with a **Fact Lock Layer**, generates 7 distinct channel deliverables simultaneously, and runs an automated **Consistency Validator** loop.
+**Live URL:** https://sih-2026-ai-engine.vercel.app  
+**Repository:** https://github.com/himanshusingh412/SIH
 
 ---
 
-## ⚡ Key Features
+## What It Does
 
-* **Multi-Format Source Ingestion**: Supports PDF, TXT, MD, JSON, Images, DOCX, and free-form prompts.
-* **Content Spine Architecture**: Single source of truth containing entities, facts, events, risks, recommendations, and source references.
-* **Fact Lock Layer**: Automatically classifies and locks critical facts to prevent LLM hallucinations.
-* **Multi-Output Generation Engine**: Simultaneously generates 7 distinct communication formats:
-  1. Executive Summary
-  2. LinkedIn Post
-  3. X (Twitter) Thread
-  4. Official Advisory
-  5. Presentation Deck (Slide Cards)
-  6. Infographic Layout Spec
-  7. Complete Video Production Package (Storyboard & Scripts)
-* **Consistency Validator**: 8-category fact contradiction detector with proportional scoring (`0–100%`).
-* **Auto-Fix Loop**: 3-retry automated correction engine that fixes fact drift and appends lock annotations.
-* **4-Tier Source Traceability Inspector**:
-  `Generated Statement` → `Content Spine Fact` → `Source Document` → `Raw Text Quote & Page Number`
-* **Offline Demo Mode**: 100% functional deterministic demo mode requiring no external API keys.
+ContentSpine AI takes a single source document (PDF, DOCX, TXT, image) and transforms it into multiple output formats — executive summaries, LinkedIn posts, X threads, presentations, infographics, and more — while enforcing a **Fact Lock** system that prevents AI hallucination by grounding every generation in verified source facts.
 
----
-
-## 🏗 System Architecture
-
-```mermaid
-graph TD
-    A[Source Document / Prompt] --> B[Ingestion Adapter & Processor]
-    B --> C[Content Spine & Fact Lock Layer]
-    C --> D[Multi-Channel Output Generators]
-    D --> E1[Executive Summary]
-    D --> E2[LinkedIn Post]
-    D --> E3[X Thread]
-    D --> E4[Advisory]
-    D --> E5[Presentation Deck]
-    D --> E6[Infographic Layout]
-    D --> E7[Video Package]
-    E1 --> F[Consistency Validator]
-    E2 --> F
-    E3 --> F
-    E4 --> F
-    E5 --> F
-    E6 --> F
-    E7 --> F
-    F -->|Discrepancies Detected| G[3-Retry Auto-Fix Loop]
-    F -->|Zero Fact Drift| H[3-Pane Review Workspace & Export]
+```
+Source Document
+    ↓
+Content Spine (structured extraction)
+    ↓
+Fact Lock (human-verified facts)
+    ↓
+Gemini AI (grounded generation)
+    ↓
+Validated Outputs (multi-format)
+    ↓
+Neon PostgreSQL (persistent storage)
 ```
 
 ---
 
-## 🛠 Tech Stack
+## Core Modules
 
-* **Frontend**: React 18, TypeScript, Vite, Lucide Icons, Glassmorphism CSS design system.
-* **Backend**: Node.js, Express, TypeScript, Multer, Prisma ORM.
-* **Database**: SQLite (default local) / PostgreSQL (production).
-* **AI Abstraction**: Pluggable AI Provider (`MockProvider` for demo, `GeminiProvider`, `OpenAIProvider`).
+| Module | Description |
+|---|---|
+| **Dashboard** | Real-time project metrics from Neon DB |
+| **Content Spine** | Structured fact extraction from source documents |
+| **Review Workspace** | 3-pane review: source ↔ spine ↔ outputs |
+| **Resume Studio** | 8-tab ATS-aware resume intelligence system |
+| **AI Agents** | Gemini-powered knowledge agent with guardrails |
+| **History** | Persistent conversation + generation logs |
+| **Analytics** | Project activity and generation statistics |
+| **Settings** | Provider configuration (Gemini / Mock) |
 
 ---
 
-## ⚡ Quick Start
+## Tech Stack
 
-### 1. Prerequisites
-* Node.js v18+ and `npm`
+| Layer | Technology |
+|---|---|
+| Frontend | React 18 + TypeScript + Vite |
+| Backend | Node.js + Express + TypeScript |
+| AI | Google Gemini (`gemini-3.1-flash-lite`) |
+| ORM | Prisma 5.22 |
+| Database | Neon PostgreSQL (production) |
+| Deployment | Vercel (serverless) |
+| Export | `docx`, `pdfkit`, `pptxgenjs` |
+| File parsing | `pdf-parse`, `multer` |
 
-### 2. Environment Setup
-Create `server/.env`:
+---
+
+## Quick Start
+
+### Prerequisites
+
+- Node.js 18+
+- A [Neon PostgreSQL](https://neon.tech) database
+- A [Google AI Studio](https://aistudio.google.com) API key
+
+### Setup
+
+```bash
+# Clone
+git clone https://github.com/himanshusingh412/SIH.git
+cd SIH
+
+# Configure server environment
+cp server/.env.example server/.env
+# Edit server/.env — set DATABASE_URL and AI_API_KEY
+
+# Push database schema to Neon
+cd server && npx prisma db push --schema=prisma/schema.prisma
+
+# Install all dependencies
+npm install
+npm --prefix client install
+npm --prefix server install
+
+# Start development
+npm --prefix server run dev   # API on http://localhost:5001
+npm --prefix client run dev   # UI on http://localhost:5173
+```
+
+### Environment Variables
+
 ```env
+# server/.env
 PORT=5001
 NODE_ENV=development
-DATABASE_URL="file:./dev.db"
+DATABASE_URL=<your-neon-connection-string>
 AI_PROVIDER=gemini
-AI_API_KEY=your_gemini_api_key_here
+AI_API_KEY=<your-gemini-api-key>
 AI_MODEL=gemini-3.1-flash-lite
 DEMO_MODE=false
 ```
 
-### 3. Install & Run
-```bash
-# Terminal 1 — Backend
-cd server
-npm install
-npx prisma generate
-npm run dev
+> **Never commit `server/.env` to version control.** It is in `.gitignore`.
 
-# Terminal 2 — Frontend
-cd client
-npm install
-npm run dev
+---
+
+## Deployment
+
+Deployed on [Vercel](https://vercel.com). The `vercel-build` script:
+
+1. Installs client dependencies
+2. Generates Prisma client
+3. Runs `prisma db push` (if `DATABASE_URL` is set)
+4. Builds server TypeScript
+5. Builds client Vite bundle
+
+Required Vercel environment variables:
+- `DATABASE_URL` — Neon connection string
+- `AI_API_KEY` — Gemini API key
+- `AI_PROVIDER=gemini`
+- `AI_MODEL=gemini-3.1-flash-lite`
+- `DEMO_MODE=false`
+
+---
+
+## API Health Check
+
+```bash
+curl https://sih-2026-ai-engine.vercel.app/api/health
+# → { "success": true, "database": "connected", "status": "healthy" }
 ```
 
-Open [http://localhost:5173](http://localhost:5173) in your browser.
+---
+
+## Rate Limiting
+
+The Gemini Free Tier allows **15 requests/minute**. The server handles `HTTP 429` responses with:
+- Structured error code `GEMINI_RATE_LIMITED`
+- `retryAfterSeconds` field in response
+- Provider health status tracking
+- No silent fallback to mock AI
 
 ---
 
-## 📄 Documentation Index
+## File Upload Limits
 
-* [PRD.md](file:///Users/himanshusingh/Downloads/hackathon/SIH/PRD.md) — Product Requirements Document
-* [ARCHITECTURE.md](file:///Users/himanshusingh/Downloads/hackathon/SIH/ARCHITECTURE.md) — Complete System & Data Architecture
-* [API.md](file:///Users/himanshusingh/Downloads/hackathon/SIH/API.md) — REST API Endpoints Reference
-* [FEATURES.md](file:///Users/himanshusingh/Downloads/hackathon/SIH/FEATURES.md) — Full Feature Matrix
-* [DATABASE.md](file:///Users/himanshusingh/Downloads/hackathon/SIH/DATABASE.md) — Prisma Database Schema & Models
-* [SECURITY.md](file:///Users/himanshusingh/Downloads/hackathon/SIH/SECURITY.md) — Security & Secret Exposure Audit
-* [DEPLOYMENT.md](file:///Users/himanshusingh/Downloads/hackathon/SIH/DEPLOYMENT.md) — Production Deployment Guide
-* [DEMO_SCRIPT.md](file:///Users/himanshusingh/Downloads/hackathon/SIH/DEMO_SCRIPT.md) — Step-by-Step SIH Demo Walkthrough
+| Type | Limit |
+|---|---|
+| Source documents | 50 MB |
+| Resume uploads | 20 MB |
+| Allowed formats | PDF, DOCX, TXT, MD, JSON, PNG, JPG, WEBP |
 
 ---
 
-## 📜 License
+## License
 
-[MIT License](file:///Users/himanshusingh/Downloads/hackathon/SIH/LICENSE.md) © 2026 SIH Development Team.
+See [LICENSE.md](LICENSE.md).

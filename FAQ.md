@@ -1,31 +1,85 @@
-# SIH Judge Frequently Asked Questions (FAQ) & Strategic Answers
+# FAQ — ContentSpine AI
 
-### Q1: How does your system prevent LLM hallucinations across multiple outputs?
-**Answer**:
-> *"Instead of passing raw source text to independent LLM prompts for each output, we extract a **Content Spine** first. The Content Spine acts as an immutable Single Source of Truth. All critical dates, numbers, names, and claims are extracted and locked in the **Fact Lock Layer**. When output generators run, they receive the locked facts as strict constraints and are validated against them afterwards."*
+## General
 
----
+**Q: What is ContentSpine AI?**  
+A: ContentSpine AI is an AI content transformation engine. You upload a source document, it extracts a structured "Content Spine" of verified facts, you lock the facts you want to enforce, and then it generates multiple output formats (executive summary, LinkedIn post, X thread, presentation, etc.) that are grounded in those locked facts.
 
-### Q2: What happens if a generated deliverable alters a locked date or metric?
-**Answer**:
-> *"Our **Consistency Validator** automatically parses all 8 fact categories (dates, numbers, person, organization, location, claims, risks, recommendations) and computes a proportional consistency score. If a discrepancy is detected, the **Auto-Fix Loop** automatically regenerates the output up to 3 times, enforcing fact compliance with `[Fact Lock - Attempt X/3]` annotations. If unresolvable, it triggers a **Human Review Required** red banner."*
+**Q: What problem does it solve?**  
+A: It prevents AI hallucination in content creation. By locking verified facts before generation, every AI output can be checked against a source of truth. If Gemini invents a number or misquotes a fact, the validator flags it.
 
----
-
-### Q3: How do users verify where a specific claim came from?
-**Answer**:
-> *"Every output claim includes an interactive `[Why was this generated?]` inspector button. Clicking it displays a **4-Tier Source Lineage Inspector**:
-> `Generated Statement` → `Content Spine Fact` → `Source Document` → `Raw Text Quote & Page Number`
-> This provides 100% auditability for government reviewers."*
+**Q: Is this a SaaS product or a hackathon prototype?**  
+A: This is a fully working prototype built for SIH 2026. All features that are marked as "implemented" are real, working code — not demos.
 
 ---
 
-### Q4: Does your platform work offline or without paid AI API keys?
-**Answer**:
-> *"Yes! We implemented a pluggable **AI Provider Abstraction Layer**. In `MockProvider` mode, the entire application operates 100% offline, deterministically parsing documents, building Content Spines, locking facts, generating 7 deliverables, validating consistency, and exporting packages without requiring external API keys or network connectivity."*
+## Technical
+
+**Q: Which AI model does this use?**  
+A: Google Gemini (`gemini-3.1-flash-lite`) via the `@google/generative-ai` SDK. All AI calls happen server-side.
+
+**Q: Is OpenAI supported?**  
+A: The `OpenAIProvider` class is implemented and wired into the factory. However, `OPENAI_API_KEY` is not configured in the production Vercel deployment, so it cannot be used without adding that env var.
+
+**Q: What database does this use?**  
+A: Neon PostgreSQL in production, accessed through Prisma ORM. The Neon database is the source of truth for all projects, facts, conversations, resumes, and history.
+
+**Q: Why was the app showing `localhost:5432` errors?**  
+A: The original `vercel-build` script had a default fallback string `postgresql://postgres:postgres@localhost:5432/contentspine_db` that was evaluated even in production. This has been fixed — the build script now only connects to Neon if `DATABASE_URL` is present in the environment.
+
+**Q: What file formats can I upload?**  
+A: PDF, DOCX, TXT, Markdown, JSON, PNG, JPG, WEBP. Files must be under 50 MB (20 MB for resume uploads). MOV/MP4/audio files are not supported on the backend.
+
+**Q: Why does the ATS score vary between runs?**  
+A: ATS scores are computed by Gemini via semantic analysis. Gemini responses have inherent variability. The scores are directionally accurate but should not be treated as deterministic or comparable across different job descriptions without normalization.
+
+**Q: What happens when Gemini returns a 429 rate limit error?**  
+A: The server returns `GEMINI_RATE_LIMITED` with a `retryAfterSeconds` value. The UI shows the real rate-limit status and a retry countdown. There is no silent fallback to Mock AI.
+
+**Q: Is there authentication/login?**  
+A: Not currently implemented. User isolation (via `userId`) is modeled in the database but not enforced with authentication middleware. All data is publicly accessible by project ID.
 
 ---
 
-### Q5: What input document formats are supported?
-**Answer**:
-> *"Our `DocumentProcessor` supports PDF documents, plain text (.txt), Markdown (.md), JSON data, uploaded images (via OCR adapter), Microsoft Word (.docx), and raw text prompts."*
+## Resume Studio
+
+**Q: Does the ATS Scanner actually parse the resume like a real ATS?**  
+A: It uses Gemini to perform semantic analysis against the job description. It is not a commercial ATS. Scores reflect Gemini's assessment of keyword overlap, experience alignment, and formatting quality — not the behavior of any specific ATS product (Workday, Greenhouse, etc.).
+
+**Q: Can I export my resume as a Word document?**  
+A: Yes. `GET /api/resume/:id/export/docx` returns a binary DOCX file generated by the `docx` library. `GET /api/resume/:id/export/pdf` returns a PDF generated by `pdfkit`.
+
+**Q: Does the optimizer invent facts about me?**  
+A: No. The `resumeFactLock.ts` module validates optimizer output against the candidate's Content Spine. The optimizer rewrites existing bullets using better structure and action verbs — it does not fabricate achievements, metrics, or job history.
+
+**Q: What is a "Candidate Content Spine"?**  
+A: It is a structured JSON representation of the candidate's professional history — extracted from the resume. It mirrors the Content Spine concept used for source documents: a locked set of verified facts that constrains all AI operations.
+
+---
+
+## Deployment
+
+**Q: Where is the app deployed?**  
+A: Vercel, at https://sih-2026-ai-engine.vercel.app
+
+**Q: How do I deploy my own instance?**  
+A: See [DEPLOYMENT.md](DEPLOYMENT.md). You need a Neon database and a Gemini API key. Run `npx vercel --prod` after setting the environment variables.
+
+**Q: Why does the build run `prisma db push` instead of `prisma migrate deploy`?**  
+A: The project uses schema push (not migration files) for rapid iteration. For a production system with strict change management, migrating to `prisma migrate` is recommended.
+
+---
+
+## Known Limitations
+
+**Q: Is file format conversion (MOV → MP4) supported?**  
+A: No. The conversion router exists but FFmpeg is not available in the Vercel serverless environment. This is marked as a planned feature.
+
+**Q: Can I use Llama 3 / local models?**  
+A: The `LlamaProvider` is implemented and uses an Ollama endpoint. It works in local development if Ollama is running. It is not available on Vercel.
+
+**Q: Is there multi-user support?**  
+A: The database schema has a `userId` field on `Project` and `Resume` models, but authentication is not implemented. All users share the same database namespace.
+
+**Q: Are there automated tests that run on every push?**  
+A: No. There is no CI pipeline with automated tests. Tests exist as manual TypeScript scripts in `server/src/tests/`. Adding a GitHub Actions workflow is a planned improvement.

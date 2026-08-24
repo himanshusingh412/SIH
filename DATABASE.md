@@ -1,125 +1,393 @@
-# Database Schema & Entity Relationships — ContentSpine AI
+# Database Reference — ContentSpine AI
 
-## 1. Entity Relationship Diagram (ERD)
+## Production Database
 
-```mermaid
-erDiagram
-    USER ||--o{ PROJECT : owns
-    PROJECT ||--o{ SOURCE_DOCUMENT : contains
-    PROJECT ||--o{ CONTENT_SPINE : has
-    PROJECT ||--o{ OUTPUT : generates
-    PROJECT ||--o{ VALIDATION_RESULT : produces
-    PROJECT ||--o{ GENERATION_JOB : tracks
-    PROJECT ||--o{ AUDIENCE_PROFILE : uses
+| Property | Value |
+|---|---|
+| Provider | **Neon PostgreSQL** |
+| ORM | **Prisma 5.22** |
+| Schema file | `server/prisma/schema.prisma` |
+| Environment variable | `DATABASE_URL` (server-side only) |
+| Connection | Pooled via Neon connection pooler |
+| SSL | Required (`sslmode=require`) |
 
-    CONTENT_SPINE ||--o{ FACT : locks
-    CONTENT_SPINE ||--o{ ENTITY : extracts
+> **Production must never use `localhost:5432`.**  
+> `DATABASE_URL` must point to a Neon PostgreSQL connection string on Vercel.
 
-    SOURCE_DOCUMENT ||--o{ SOURCE_REFERENCE : references
-    FACT ||--o{ SOURCE_REFERENCE : cites
-    ENTITY ||--o{ SOURCE_REFERENCE : cites
+---
 
-    OUTPUT ||--o{ OUTPUT_VERSION : versioned
-    AUDIENCE_PROFILE ||--o{ OUTPUT : targets
+## Connection Configuration
+
+```env
+# server/.env  (never commit this file)
+DATABASE_URL=<your-neon-connection-string>
+```
+
+Example format (placeholder only — never use a real secret in docs):
+
+```
+postgresql://user:password@ep-xxxx.region.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+```
+
+The Prisma singleton in `server/src/config/index.ts` reads `DATABASE_URL` at startup and is reused across serverless cold-starts via `global.prisma`.
+
+---
+
+## Schema Overview
+
+All models are defined in `server/prisma/schema.prisma`.
+
+```
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
 ```
 
 ---
 
-## 2. Model Definitions (Prisma)
+## Models
 
-### 2.1 `User`
-* `id` (String, UUID, PK)
-* `email` (String, Unique)
-* `name` (String, Optional)
-* `role` (String, default "OPERATOR")
-* `createdAt`, `updatedAt` (DateTime)
+### User
+Stores registered user accounts. Currently optional (many records have `userId: null`).
 
-### 2.2 `Project`
-* `id` (String, UUID, PK)
-* `userId` (String, FK to User)
-* `title` (String)
-* `description` (String, Optional)
-* `status` (String: DRAFT, INGESTED, GENERATED, VALIDATED)
-* `createdAt`, `updatedAt` (DateTime)
-* Indexes: `@@index([userId])`, `@@index([status])`
+| Field | Type | Notes |
+|---|---|---|
+| id | String (UUID) | PK |
+| email | String | Unique |
+| name | String? | Optional |
+| createdAt | DateTime | Auto |
+| updatedAt | DateTime | Auto-update |
 
-### 2.3 `SourceDocument`
-* `id` (String, UUID, PK)
-* `projectId` (String, FK to Project)
-* `filename` (String)
-* `fileType` (String)
-* `inputCategory` (String: PDF, REPORT, ARTICLE, THREAT_INTEL, POLICY, IMAGE, VIDEO, PROMPT)
-* `rawText` (String)
-* `fileSize`, `pageCount` (Int)
-* `createdAt` (DateTime)
-* Indexes: `@@index([projectId])`
-
-### 2.4 `ContentSpine`
-* `id` (String, UUID, PK)
-* `projectId` (String, FK to Project)
-* `version` (Int, default 1)
-* `summary` (String, Optional)
-* `createdAt`, `updatedAt` (DateTime)
-* Indexes: `@@index([projectId])`
-
-### 2.5 `Fact`
-* `id` (String, UUID, PK)
-* `contentSpineId` (String, FK to ContentSpine)
-* `factKey` (String)
-* `factValue` (String)
-* `category` (String: DATE, NUMBER, PERSON, ORGANIZATION, LOCATION, CLAIM, RISK, RECOMMENDATION)
-* `isLocked` (Boolean, default true)
-* `confidence` (Float, default 1.0)
-* `createdAt` (DateTime)
-* Indexes: `@@index([contentSpineId])`, `@@index([category])`
-
-### 2.6 `Entity`
-* `id` (String, UUID, PK)
-* `contentSpineId` (String, FK to ContentSpine)
-* `name` (String)
-* `type` (String: PERSON, ORGANIZATION, LOCATION, TECHNOLOGY, EVENT)
-* `confidence` (Float, default 1.0)
-* Indexes: `@@index([contentSpineId])`, `@@index([type])`
-
-### 2.7 `SourceReference`
-* `id` (String, UUID, PK)
-* `sourceDocumentId` (String, FK to SourceDocument)
-* `factId` (String, FK to Fact, Optional)
-* `entityId` (String, FK to Entity, Optional)
-* `snippetText` (String)
-* `pageNumber` (Int, default 1)
-* `startCharIndex`, `endCharIndex` (Int)
-* Indexes: `@@index([sourceDocumentId])`, `@@index([factId])`, `@@index([entityId])`
-
-### 2.8 `Output`
-* `id` (String, UUID, PK)
-* `projectId` (String, FK to Project)
-* `outputType` (String: EXECUTIVE_SUMMARY, LINKEDIN_POST, X_THREAD, ADVISORY, PRESENTATION, INFOGRAPHIC, VIDEO_PACKAGE)
-* `audienceProfileId` (String, FK to AudienceProfile)
-* `currentVersionId` (String, Optional)
-* `isConsistent` (Boolean, default true)
-* Indexes: `@@index([projectId])`, `@@index([outputType])`
-
-### 2.9 `OutputVersion`
-* `id` (String, UUID, PK)
-* `outputId` (String, FK to Output)
-* `version` (Int, default 1)
-* `title` (String)
-* `content` (String)
-* `createdReason` (String: INITIAL_GENERATION, MANUAL_EDIT, AUTO_CORRECTION, RE_GENERATION)
-* Indexes: `@@index([outputId])`
-
-### 2.10 `ValidationResult`
-* `id` (String, UUID, PK)
-* `projectId` (String, FK to Project)
-* `consistencyScore` (Float, default 100.0)
-* `passed` (Boolean, default true)
-* `issuesFound` (String, JSON envelope containing `_summary` and `issues`)
-* `autoCorrected` (Boolean, default false)
-* Indexes: `@@index([projectId])`
+**Relations:** Projects, Resumes, Agents
 
 ---
 
-## 3. Migration Strategy
-* **Local Development**: SQLite database (`server/prisma/dev.db`) initialized via `npx prisma db push`.
-* **Production Deployment**: PostgreSQL database configured via `DATABASE_URL="postgresql://user:pass@host:5432/content_spine_db"` and `npx prisma migrate deploy`.
+### Project
+The root entity for a content transformation job.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | String (UUID) | PK |
+| userId | String? | FK → User (nullable) |
+| title | String | Required |
+| description | String? | Optional |
+| status | String | DRAFT / ACTIVE / COMPLETED / DELETED |
+| createdAt | DateTime | Auto |
+| updatedAt | DateTime | Auto-update |
+
+**Relations:** SourceDocuments, ContentSpines, Facts, Entities, SourceReferences, Outputs, ValidationResults, GenerationJobs, AudienceProfiles, Agents, Resumes, Conversations, GenerationActivities, ExportHistories
+
+---
+
+### SourceDocument
+A raw uploaded document attached to a project.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | String (UUID) | PK |
+| projectId | String | FK → Project |
+| filename | String | Sanitized original filename |
+| mimeType | String | Detected MIME type |
+| category | String | PDF / DOCX / TXT / IMAGE |
+| rawText | String | Extracted plain text |
+| pageCount | Int | Extracted page count |
+| fileSize | Int | Bytes |
+| metadata | String? | JSON |
+| createdAt | DateTime | Auto |
+
+---
+
+### ContentSpine
+Structured extraction result for a project.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | String (UUID) | PK |
+| projectId | String | FK → Project (unique) |
+| summary | String | Extracted document summary |
+| outputTypes | String | JSON array of selected output types |
+| audience | String | Audience profile JSON |
+| createdAt / updatedAt | DateTime | Auto |
+
+---
+
+### Fact
+An individual extracted fact from the source.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | String (UUID) | PK |
+| projectId | String | FK → Project |
+| key | String | Fact label |
+| value | String | Fact content |
+| confidence | Float | 0.0–1.0 extraction confidence |
+| isLocked | Boolean | Human-verified lock |
+| category | String? | Grouping category |
+| sourceRef | String? | JSON source reference |
+| createdAt / updatedAt | DateTime | Auto |
+
+---
+
+### Entity
+Named entities extracted from source (people, organizations, dates).
+
+| Field | Type | Notes |
+|---|---|---|
+| id | String (UUID) | PK |
+| projectId | String | FK → Project |
+| type | String | PERSON / ORG / DATE / LOCATION / etc. |
+| value | String | Entity text |
+| confidence | Float | Extraction confidence |
+| createdAt | DateTime | Auto |
+
+---
+
+### Output
+A generated deliverable for a project.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | String (UUID) | PK |
+| projectId | String | FK → Project |
+| type | String | EXECUTIVE_SUMMARY / LINKEDIN_POST / X_THREAD / ADVISORY / PRESENTATION / INFOGRAPHIC / VIDEO_PACKAGE |
+| title | String | Generated title |
+| content | String | Generated content |
+| format | String | TEXT / MARKDOWN / HTML / JSON |
+| validationScore | Float? | 0.0–1.0 |
+| validationErrors | String? | JSON array of errors |
+| status | String | PENDING / GENERATED / VALIDATED / ERROR |
+| createdAt / updatedAt | DateTime | Auto |
+
+---
+
+### ValidationResult
+Validation run result for a project's outputs.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | String (UUID) | PK |
+| projectId | String | FK → Project |
+| totalFacts | Int | Total facts checked |
+| passedFacts | Int | Facts verified present |
+| failedFacts | Int | Facts found missing/wrong |
+| consistencyScore | Float | passedFacts / totalFacts |
+| details | String | JSON detail array |
+| createdAt | DateTime | Auto |
+
+---
+
+### Resume
+The root entity for resume intelligence.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | String (UUID) | PK |
+| userId | String? | FK → User (nullable) |
+| projectId | String? | FK → Project (nullable) |
+| title | String | Resume title |
+| targetRole | String? | Target job role |
+| candidateContentSpine | String | JSON Candidate Content Spine |
+| contactInfo | String? | JSON contact information |
+| template | String | ATS_CLASSIC (default) |
+| atsSafe | Boolean | ATS safe flag |
+| createdAt / updatedAt | DateTime | Auto |
+
+**Relations:** ResumeVersions, ATSScans, CoverLetters, LinkedInProfiles
+
+---
+
+### ResumeVersion
+A saved version of a resume targeting a specific job.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | String (UUID) | PK |
+| resumeId | String | FK → Resume |
+| version | Int | Sequential version number |
+| versionName | String | Human label (e.g., "Version 2 — Google") |
+| targetJobTitle | String? | Target job title |
+| targetCompany | String? | Target company |
+| jobDescriptionId | String? | FK → JobDescription |
+| atsScore | Float | ATS compatibility score |
+| scoreBreakdown | String? | JSON scoring breakdown |
+| optimizedContent | String | JSON optimized resume structure |
+| changesSummary | String? | JSON list of changes |
+| createdAt | DateTime | Auto |
+
+---
+
+### JobDescription
+A parsed job description for ATS matching.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | String (UUID) | PK |
+| title | String | Job title |
+| company | String? | Company name |
+| rawText | String | Full raw JD text |
+| parsedJobSpine | String | JSON Job Content Spine |
+| requiredSkills | String? | JSON array |
+| preferredSkills | String? | JSON array |
+| keywords | String? | JSON array |
+| createdAt | DateTime | Auto |
+
+---
+
+### ATSScan
+ATS compatibility scan result with 9-dimension scoring.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | String (UUID) | PK |
+| resumeId | String | FK → Resume |
+| resumeVersionId | String? | FK → ResumeVersion |
+| jobDescriptionId | String? | FK → JobDescription |
+| overallScore | Float | Composite score 0–100 |
+| keywordMatchScore | Float | Keyword overlap |
+| skillsMatchScore | Float | Skills alignment |
+| experienceMatchScore | Float | Experience alignment |
+| educationMatchScore | Float | Education alignment |
+| structureScore | Float | Section structure quality |
+| formattingScore | Float | ATS-safe formatting |
+| contactInfoScore | Float | Contact info completeness |
+| contentQualityScore | Float | Content quality |
+| findings | String | JSON findings + penalties |
+| missingKeywords | String | JSON missing keywords |
+| keywordTable | String | JSON keyword matrix |
+| createdAt | DateTime | Auto |
+
+---
+
+### CoverLetter
+
+| Field | Type | Notes |
+|---|---|---|
+| id | String (UUID) | PK |
+| resumeId | String | FK → Resume |
+| targetJobTitle | String | |
+| targetCompany | String | |
+| content | String | Full cover letter text |
+| createdAt | DateTime | Auto |
+
+---
+
+### LinkedInProfile
+
+| Field | Type | Notes |
+|---|---|---|
+| id | String (UUID) | PK |
+| resumeId | String | FK → Resume |
+| headline | String | LinkedIn headline |
+| aboutSummary | String | About section |
+| experienceHighlights | String | JSON array |
+| skills | String | JSON array |
+| createdAt | DateTime | Auto |
+
+---
+
+### Conversation
+A persistent conversation thread linked to a project.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | String (UUID) | PK |
+| projectId | String | FK → Project |
+| title | String | Conversation title |
+| provider | String? | `gemini` (default) |
+| model | String? | `gemini-3.1-flash-lite` (default) |
+| createdAt / updatedAt | DateTime | Auto |
+
+**Relations:** Messages, GenerationActivities, ExportHistories
+
+---
+
+### Message
+Individual message in a conversation.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | String (UUID) | PK |
+| conversationId | String | FK → Conversation |
+| role | String | `user` / `assistant` / `system` |
+| content | String | Message body |
+| provider | String? | AI provider used |
+| model | String? | Model name |
+| sources | String? | JSON source references |
+| grounded | Boolean | Fact-grounded response flag |
+| isError | Boolean | Error message flag |
+| createdAt | DateTime | Auto |
+
+---
+
+### GenerationActivity
+Audit log of every AI generation attempt.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | String (UUID) | PK |
+| projectId | String | FK → Project |
+| conversationId | String? | FK → Conversation |
+| provider | String | Provider used |
+| model | String? | Model name |
+| status | String | SUCCESS / FAILED / RATE_LIMITED / VALIDATION_FAILED |
+| latencyMs | Int? | Generation latency |
+| inputTokens | Int? | Input token count |
+| outputTokens | Int? | Output token count |
+| errorCode | String? | Structured error code |
+| retryAfterSeconds | Int? | Retry delay (for 429s) |
+| createdAt | DateTime | Auto |
+
+---
+
+### ExportHistory
+Record of every file export.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | String (UUID) | PK |
+| projectId | String | FK → Project |
+| conversationId | String? | FK → Conversation |
+| format | String | PDF / DOCX / PPTX / JSON / CSV / Markdown / HTML / XML / YAML |
+| filename | String | Output filename |
+| createdAt | DateTime | Auto |
+
+---
+
+## Development Workflow
+
+```bash
+# Push schema changes to Neon (development)
+cd server
+npx prisma db push --schema=prisma/schema.prisma
+
+# Generate Prisma client after schema changes
+npx prisma generate --schema=prisma/schema.prisma
+
+# Inspect database
+npx prisma studio
+```
+
+## Production Migration
+
+The `vercel-build` script automatically runs `prisma db push` if `DATABASE_URL` is set:
+
+```bash
+if [ -n "$DATABASE_URL" ]; then
+  npx prisma db push --schema=server/prisma/schema.prisma --accept-data-loss || true
+fi
+```
+
+> **Note:** `prisma db push` is used (not `prisma migrate deploy`) because this project uses schema push rather than migration files. Consider migrating to `prisma migrate` for stricter production change management.
+
+---
+
+## Security
+
+- `DATABASE_URL` is **server-side only**. It is never sent to the browser.
+- Prisma errors are sanitized in `server/src/middleware/errorHandler.ts` — connection errors return `DATABASE_UNAVAILABLE` JSON without host/port details.
+- The `.env` file is in `.gitignore` and must never be committed.
