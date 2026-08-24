@@ -405,4 +405,15 @@ export const apiClient = {
 
   getResumeAnalytics: (resumeId: string) =>
     request<{ analytics: any }>(`/resume/${encodeURIComponent(resumeId)}/analytics`),
+
+  getDashboardStats: () => request<{ stats: any }>('/projects/dashboard-stats'),
+
+  getDatabaseDiagnostics: () =>
+    request<{
+      databaseConfigured: boolean;
+      productionDatabase: boolean;
+      provider: string;
+      connection: string;
+      schema: string;
+    }>('/health/db-diagnostics'),
 };

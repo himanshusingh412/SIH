@@ -35,6 +35,7 @@ export class ProjectRepository {
   }
 
   async listProjects() {
+    await ensureDbSchema();
     return prisma.project.findMany({
       orderBy: { createdAt: 'desc' },
       include: {
@@ -43,6 +44,56 @@ export class ProjectRepository {
         validationResults: { orderBy: { createdAt: 'desc' }, take: 1 },
       },
     });
+  }
+
+  async getDashboardStats() {
+    await ensureDbSchema();
+
+    // 1. Active Projects Count
+    const activeProjectsCount = await prisma.project.count({
+      where: { status: { not: 'DELETED' } },
+    });
+
+    // 2. Fact Locks Enforced Count
+    const factLocksCount = await prisma.fact.count({
+      where: { isLocked: true },
+    });
+
+    // 3. Deliverables Built Count
+    const deliverablesCount = await prisma.output.count();
+
+    // 4. Factual Consistency Rate
+    const validationResults = await prisma.validationResult.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+
+    let consistencyRate = 100;
+    if (validationResults.length > 0) {
+      const avgScore =
+        validationResults.reduce((acc, v) => acc + (v.consistencyScore || 100), 0) /
+        validationResults.length;
+      consistencyRate = Math.round(avgScore * 10) / 10;
+    }
+
+    // 5. Recent Projects
+    const recentProjects = await prisma.project.findMany({
+      orderBy: { updatedAt: 'desc' },
+      take: 5,
+      include: {
+        sourceDocuments: true,
+        outputs: true,
+        validationResults: { orderBy: { createdAt: 'desc' }, take: 1 },
+      },
+    });
+
+    return {
+      activeProjectsCount,
+      factLocksCount,
+      deliverablesCount,
+      consistencyRate,
+      recentProjects,
+    };
   }
 
   async createSourceDocument(data: {

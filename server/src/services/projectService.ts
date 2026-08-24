@@ -42,6 +42,10 @@ Executive Summary: In Q3 2026, Smart India Hackathon introduced the AI Content T
     return this.repo.listProjects();
   }
 
+  async getDashboardStats() {
+    return this.repo.getDashboardStats();
+  }
+
   async ingestDocument(
     projectId: string,
     file: Express.Multer.File | undefined,

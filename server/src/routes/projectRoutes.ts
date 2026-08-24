@@ -11,6 +11,7 @@ import {
   exportProjectPackage,
   generateOutputs,
   getContentSpine,
+  getDashboardStats,
   getOutputById,
   getProject,
   getProjectOutputs,
@@ -33,8 +34,9 @@ const upload = multer({
   limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
 });
 
-// Projects
+// Projects & Dashboard
 router.get('/projects', listProjects);
+router.get('/projects/dashboard-stats', getDashboardStats);
 router.post('/projects', createProject);
 router.post('/projects/seed-demo', seedDemoProject);
 router.get('/projects/:id', getProject);

@@ -69,6 +69,35 @@ const healthHandler = async (_req: Request, res: Response) => {
   }
 };
 
+// Database Diagnostics Handler (Requirement 12)
+const dbDiagnosticsHandler = async (_req: Request, res: Response) => {
+  const isConfigured = config.isDatabaseConfigured;
+  const isNeon = config.isNeonDatabase;
+  const isLocal = config.isLocalhostDatabase;
+
+  let connectionStatus = 'disconnected';
+  let schemaStatus = 'unknown';
+
+  try {
+    if (isConfigured || !isLocal) {
+      await prisma.$queryRawUnsafe('SELECT 1');
+      connectionStatus = 'healthy';
+      schemaStatus = 'healthy';
+    }
+  } catch {
+    connectionStatus = 'error';
+    schemaStatus = 'unavailable';
+  }
+
+  return res.json({
+    databaseConfigured: isConfigured,
+    productionDatabase: isNeon || (!isLocal && (process.env.NODE_ENV === 'production' || Boolean(process.env.VERCEL))),
+    provider: 'postgresql',
+    connection: connectionStatus,
+    schema: schemaStatus,
+  });
+};
+
 // AI Provider Health Endpoint Handler
 const aiHealthHandler = (_req: Request, res: Response) => {
   return res.json({
@@ -82,6 +111,8 @@ const aiHealthHandler = (_req: Request, res: Response) => {
 // Support both /api/health and /health for Vercel routing compatibility
 app.get('/api/health', healthHandler);
 app.get('/health', healthHandler);
+app.get('/api/health/db-diagnostics', dbDiagnosticsHandler);
+app.get('/health/db-diagnostics', dbDiagnosticsHandler);
 app.get('/api/health/ai', aiHealthHandler);
 app.get('/health/ai', aiHealthHandler);
 

@@ -47,6 +47,19 @@ export async function listProjects(_req: Request, res: Response) {
 }
 
 /**
+ * GET /api/projects/dashboard-stats
+ * Calculate and return real database metrics for the Dashboard
+ */
+export async function getDashboardStats(_req: Request, res: Response) {
+  try {
+    const stats = await service.getDashboardStats();
+    return sendSuccess(res, { stats });
+  } catch (err: any) {
+    return sendError(res, err.message || 'Failed to fetch dashboard stats', 500);
+  }
+}
+
+/**
  * GET /api/projects/:id
  * Get single project details by ID
  */

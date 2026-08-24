@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "vercel-build": "npm --prefix client install && prisma generate --schema=server/prisma/schema.prisma && (DATABASE_URL=${DATABASE_URL:-\"postgresql://postgres:postgres@localhost:5432/contentspine_db\"} npx prisma db push --schema=server/prisma/schema.prisma --accept-data-loss || true) && npm --prefix server run build && npm --prefix client run build",
+    "vercel-build": "npm --prefix client install && prisma generate --schema=server/prisma/schema.prisma && (if [ -n \"$DATABASE_URL\" ]; then npx prisma db push --schema=server/prisma/schema.prisma --accept-data-loss || true; fi) && npm --prefix server run build && npm --prefix client run build",
     "build": "npm --prefix client install && npm --prefix server run build && npm --prefix client run build",
     "start": "npm --prefix server start",
     "test": "npm --prefix server test"
