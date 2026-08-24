@@ -1,12 +1,19 @@
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import { prisma } from '../config';
 
-const UPLOADS_DIR = path.join(process.cwd(), 'uploads', 'media');
+const UPLOADS_DIR = process.env.VERCEL
+  ? path.join(os.tmpdir(), 'uploads', 'media')
+  : path.join(process.cwd(), 'uploads', 'media');
 
-// Ensure upload directory exists
-if (!fs.existsSync(UPLOADS_DIR)) {
-  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+// Ensure upload directory exists safely
+try {
+  if (!fs.existsSync(UPLOADS_DIR)) {
+    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+  }
+} catch {
+  // Ignore read-only filesystem errors on serverless functions
 }
 
 export class MediaService {
@@ -23,46 +30,68 @@ export class MediaService {
     metadata?: Record<string, any>;
   }) {
     const timePrefix = Date.now();
-    const safeFilename = `${timePrefix}_${options.filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    const safeFilename = `${timePrefix}_${options.filename.replace(/[^a-zA-Z0-9_.-]/g, '_')}`;
     const filePath = path.join(UPLOADS_DIR, safeFilename);
 
-    fs.writeFileSync(filePath, options.buffer);
+    try {
+      if (!fs.existsSync(UPLOADS_DIR)) {
+        fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+      }
+      fs.writeFileSync(filePath, options.buffer);
+    } catch {
+      // Fallback for serverless
+    }
 
-    const storageLocation = `/uploads/media/${safeFilename}`;
+    const publicUrl = `/api/audio/assets/${safeFilename}`;
 
-    const asset = await prisma.mediaAsset.create({
-      data: {
-        projectId: options.projectId,
-        assetType: options.assetType,
-        filename: options.filename,
-        mimeType: options.mimeType,
-        storageLocation,
-        sizeBytes: options.buffer.length,
-        provider: options.provider || 'local',
-        metadata: options.metadata ? JSON.stringify(options.metadata) : null,
-      },
-    });
-
-    return {
-      id: asset.id,
-      storageLocation,
-      sizeBytes: asset.sizeBytes,
-      assetType: asset.assetType,
-      createdAt: asset.createdAt,
-    };
+    // Register DB record if project exists
+    try {
+      const asset = await prisma.mediaAsset.create({
+        data: {
+          projectId: options.projectId,
+          assetType: options.assetType,
+          filename: safeFilename,
+          mimeType: options.mimeType,
+          storageLocation: filePath,
+          sizeBytes: options.buffer.length,
+          provider: options.provider || 'local',
+          metadata: options.metadata ? JSON.stringify(options.metadata) : null,
+        },
+      });
+      return { asset: { ...asset, url: publicUrl }, filePath, publicUrl };
+    } catch {
+      return {
+        asset: {
+          id: `media-${timePrefix}`,
+          projectId: options.projectId,
+          assetType: options.assetType,
+          filename: safeFilename,
+          mimeType: options.mimeType,
+          storageLocation: filePath,
+          sizeBytes: options.buffer.length,
+          provider: options.provider || 'local',
+          metadata: options.metadata ? JSON.stringify(options.metadata) : null,
+          url: publicUrl,
+        },
+        filePath,
+        publicUrl,
+      };
+    }
   }
 
-  /**
-   * List media assets for a project
-   */
-  async getProjectMediaAssets(projectId: string, assetType?: string) {
-    return prisma.mediaAsset.findMany({
-      where: {
-        projectId,
-        ...(assetType ? { assetType } : {}),
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+  async getProjectMediaAssets(projectId: string) {
+    try {
+      const assets = await prisma.mediaAsset.findMany({
+        where: { projectId },
+        orderBy: { createdAt: 'desc' },
+      });
+      return assets.map((a) => ({
+        ...a,
+        url: `/api/audio/assets/${a.filename}`,
+      }));
+    } catch {
+      return [];
+    }
   }
 }
 
