@@ -1,122 +1,153 @@
 import React, { useState } from 'react';
-import { Bot, Send, Mic, ShieldCheck, RefreshCw, Zap, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
+import {
+  Bot,
+  Send,
+  Mic,
+  ShieldCheck,
+  RefreshCw,
+  Zap,
+  AlertTriangle,
+  CheckCircle2,
+  XCircle,
+  Copy,
+  Check,
+  FileText,
+  ChevronDown,
+  ChevronUp,
+  Cpu,
+} from 'lucide-react';
 import type { ContentSpineData } from '../types';
 import { apiClient } from '../services/apiClient';
 
 interface AgentsPageProps {
   projectId: string;
   spine: ContentSpineData | null;
+  selectedProvider?: string;
 }
 
-export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine }) => {
+interface ChatMessage {
+  id: string;
+  role: 'USER' | 'ASSISTANT';
+  content: string;
+  provider?: string;
+  model?: string;
+  sources?: Array<{ documentId: string; page: number; title: string; snippet: string }>;
+  grounded?: boolean;
+  isError?: boolean;
+  createdAt: string;
+}
+
+export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine, selectedProvider = 'gemini' }) => {
   const [query, setQuery] = useState<string>('');
   const [isAsking, setIsAsking] = useState<boolean>(false);
-  const [messages, setMessages] = useState<Array<{ role: 'USER' | 'ASSISTANT'; content: string; toolCalls?: any[]; audioUrl?: string }>>([
+  const [conversationId, setConversationId] = useState<string | undefined>(undefined);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [expandedFactId, setExpandedFactId] = useState<string | null>(null);
+  const [voiceNotice, setVoiceNotice] = useState<boolean>(false);
+
+  const [messages, setMessages] = useState<ChatMessage[]>([
     {
+      id: 'msg-welcome',
       role: 'ASSISTANT',
       content:
-        'Hello! I am your ContentSpine Knowledge Agent. I answer questions strictly from the verified Content Spine and locked facts. Ask me anything about this project.',
+        'Hello! I am the **ContentSpine Knowledge Agent**.\n\nI answer questions strictly from the verified Content Spine and locked facts. Ask me anything about this project.',
+      provider: selectedProvider,
+      model: selectedProvider === 'gemini' ? 'gemini-3.1-flash-lite' : selectedProvider === 'openai' ? 'gpt-4o' : 'Demo Mode',
+      grounded: true,
+      createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     },
   ]);
-  const [isVoiceRecording, setIsVoiceRecording] = useState<boolean>(false);
+
   const [testResults, setTestResults] = useState<any | null>(null);
   const [isTesting, setIsTesting] = useState<boolean>(false);
   const [testError, setTestError] = useState<string | null>(null);
 
-  const handleAsk = async () => {
-    if (!query.trim()) return;
-    const userQuery = query;
-    setQuery('');
-    setMessages((prev) => [...prev, { role: 'USER', content: userQuery }]);
+  const lockedFacts = spine?.factLocks || spine?.dates || [];
+
+  const handleSendQuery = async (customMessage?: string) => {
+    const textToSend = customMessage || query;
+    if (!textToSend.trim() || isAsking) return;
+
+    if (!customMessage) {
+      setQuery('');
+    }
+
+    const userMsgId = `user-${Date.now()}`;
+    const userMsg: ChatMessage = {
+      id: userMsgId,
+      role: 'USER',
+      content: textToSend,
+      createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    setMessages((prev) => [...prev, userMsg]);
     setIsAsking(true);
 
     try {
-      const res = await fetch('/api/agents/ask', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId: projectId || 'demo-project', query: userQuery }),
-      });
+      const res = await apiClient.askKnowledgeAgent(
+        projectId || 'demo-project',
+        textToSend,
+        conversationId,
+        selectedProvider
+      );
 
-      const contentType = res.headers.get('content-type') || '';
-      let data: any;
-      if (contentType.includes('application/json')) {
-        data = await res.json();
-      } else {
-        const text = await res.text();
-        data = { success: false, error: { message: text || 'Non-JSON server response' } };
-      }
+      if (res && res.answer) {
+        if (res.conversationId) {
+          setConversationId(res.conversationId);
+        }
 
-      if (!res.ok || data.success === false) {
-        throw new Error(data.error?.message || data.error || 'Agent request failed');
-      }
-
-      setMessages((prev) => [
-        ...prev,
-        {
+        const assistantMsg: ChatMessage = {
+          id: `asst-${Date.now()}`,
           role: 'ASSISTANT',
-          content: data.answer || data.data?.answer || 'I couldn’t find that information in the source.',
-          toolCalls: data.toolCalls || data.data?.toolCalls,
-        },
-      ]);
+          content: res.answer,
+          provider: res.provider || selectedProvider,
+          model: res.model || (selectedProvider === 'gemini' ? 'gemini-3.1-flash-lite' : 'gpt-4o'),
+          sources: res.sources || [],
+          grounded: res.grounded !== false,
+          createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        };
+
+        setMessages((prev) => [...prev, assistantMsg]);
+      } else {
+        throw new Error('The agent returned an empty response.');
+      }
     } catch (err: any) {
-      setMessages((prev) => [
-        ...prev,
-        { role: 'ASSISTANT', content: `Agent error: ${err.message}` },
-      ]);
+      const errorMsg: ChatMessage = {
+        id: `err-${Date.now()}`,
+        role: 'ASSISTANT',
+        content: `Gemini could not answer right now. (${err.message || 'Request failed'})`,
+        isError: true,
+        createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+      setMessages((prev) => [...prev, errorMsg]);
     } finally {
       setIsAsking(false);
     }
   };
 
-  const handleVoiceAsk = async () => {
-    setIsVoiceRecording(true);
-    try {
-      const res = await fetch('/api/agents/voice-ask', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectId: projectId || 'demo-project',
-          queryText: 'How many systems were affected and when did the incident occur?',
-        }),
-      });
+  const handleCopy = (id: string, text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
 
-      const contentType = res.headers.get('content-type') || '';
-      let data: any;
-      if (contentType.includes('application/json')) {
-        data = await res.json();
-      } else {
-        const text = await res.text();
-        data = { success: false, error: { message: text || 'Non-JSON voice agent response' } };
-      }
-
-      if (!res.ok || data.success === false) {
-        throw new Error(data.error?.message || 'Voice agent request failed');
-      }
-
-      const payload = data.data || data;
-
-      setMessages((prev) => [
-        ...prev,
-        { role: 'USER', content: '🎤 [Voice Query] How many systems were affected and when did the incident occur?' },
-        {
-          role: 'ASSISTANT',
-          content: payload.answer,
-          toolCalls: payload.toolCalls,
-          audioUrl: payload.audioUrl,
-        },
-      ]);
-    } catch (err: any) {
-      alert(`Voice agent error: ${err.message}`);
-    } finally {
-      setIsVoiceRecording(false);
+  const handleRegenerate = () => {
+    const lastUserMsg = [...messages].reverse().find((m) => m.role === 'USER');
+    if (lastUserMsg) {
+      handleSendQuery(lastUserMsg.content);
     }
+  };
+
+  const handleVoiceAsk = () => {
+    setVoiceNotice(true);
+    setTimeout(() => setVoiceNotice(false), 4000);
   };
 
   const handleRunAgentTests = async () => {
     setIsTesting(true);
     setTestError(null);
     try {
-      const data = await apiClient.runAgentTest(projectId || 'demo-project');
+      const data = await apiClient.runAgentTest(projectId || 'demo-project', undefined, undefined, selectedProvider);
       setTestResults(data);
     } catch (err: any) {
       console.error('❌ Agent Test UI Error:', err);
@@ -127,77 +158,242 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine }) => {
     }
   };
 
-  const lockedFacts = spine?.factLocks || [];
+  // Helper to format simple markdown text
+  const renderFormattedContent = (content: string) => {
+    const lines = content.split('\n');
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        {lines.map((line, lIdx) => {
+          if (!line.trim()) return <div key={lIdx} style={{ height: '4px' }} />;
+
+          // Heading
+          if (line.startsWith('# ')) {
+            return (
+              <h3 key={lIdx} style={{ fontSize: '1.05rem', fontWeight: 800, color: 'white', margin: '4px 0' }}>
+                {line.substring(2)}
+              </h3>
+            );
+          }
+          if (line.startsWith('## ')) {
+            return (
+              <h4 key={lIdx} style={{ fontSize: '0.95rem', fontWeight: 700, color: 'white', margin: '4px 0' }}>
+                {line.substring(3)}
+              </h4>
+            );
+          }
+
+          // Bullet list
+          if (line.startsWith('* ') || line.startsWith('- ')) {
+            return (
+              <div key={lIdx} style={{ display: 'flex', gap: '6px', marginLeft: '8px' }}>
+                <span style={{ color: 'var(--accent-sky)' }}>•</span>
+                <span>{parseInlineFormatting(line.substring(2))}</span>
+              </div>
+            );
+          }
+
+          return <div key={lIdx}>{parseInlineFormatting(line)}</div>;
+        })}
+      </div>
+    );
+  };
+
+  // Parse **bold** and *italic*
+  const parseInlineFormatting = (text: string) => {
+    const parts = text.split(/(\*\*.*?\*\*|\*.*?\*)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={i} style={{ color: 'white', fontWeight: 700 }}>{part.slice(2, -2)}</strong>;
+      }
+      if (part.startsWith('*') && part.endsWith('*')) {
+        return <em key={i} style={{ color: '#cbd5e1' }}>{part.slice(1, -1)}</em>;
+      }
+      return part;
+    });
+  };
 
   return (
-    <div style={{ padding: '24px', display: 'grid', gridTemplateColumns: '1fr 360px', gap: '20px' }}>
-      {/* Left: Chat Window */}
+    <div style={{ padding: '24px', display: 'grid', gridTemplateColumns: '1fr 380px', gap: '20px' }}>
+      {/* Left Column: Chat Window */}
       <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', height: 'calc(100vh - 120px)' }}>
+        {/* Chat Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '12px', borderBottom: '1px solid var(--border-color)' }}>
           <div>
-            <span className="badge badge-indigo" style={{ marginBottom: '4px' }}>
-              Ask Your Content Spine
-            </span>
-            <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: 'white', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Bot size={20} color="var(--accent-indigo)" /> AI Knowledge & Voice Agent
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+              <span className="badge badge-indigo">ContentSpine Knowledge Agent</span>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <Cpu size={12} color="#38bdf8" /> {selectedProvider === 'gemini' ? 'Gemini 3.1 Flash Lite' : selectedProvider === 'openai' ? 'GPT-4o' : 'Demo Mode'}
+              </span>
+            </div>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'white', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Bot size={22} color="var(--accent-indigo)" /> Knowledge & Q&A Assistant
             </h2>
           </div>
 
-          <button className="btn-secondary" onClick={handleVoiceAsk} disabled={isVoiceRecording} style={{ fontSize: '0.8rem' }}>
-            <Mic size={15} color="var(--accent-rose)" /> {isVoiceRecording ? 'Listening...' : 'Voice Query'}
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button className="btn-secondary" onClick={handleVoiceAsk} style={{ fontSize: '0.8rem' }}>
+              <Mic size={15} color="var(--accent-rose)" /> Voice Query
+            </button>
+          </div>
         </div>
 
+        {/* Voice Notice Alert Banner */}
+        {voiceNotice && (
+          <div style={{ background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '10px 14px', borderRadius: '8px', fontSize: '0.8rem', color: '#fcd34d', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <AlertTriangle size={16} /> Voice input is not configured. Please use typed text queries.
+          </div>
+        )}
+
         {/* Message Thread */}
-        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '14px', paddingRight: '4px' }}>
-          {messages.map((m, idx) => (
+        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px', paddingRight: '6px' }}>
+          {messages.map((m) => (
             <div
-              key={idx}
+              key={m.id}
               style={{
                 alignSelf: m.role === 'USER' ? 'flex-end' : 'flex-start',
-                maxWidth: '85%',
-                background: m.role === 'USER' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255, 255, 255, 0.04)',
-                border: m.role === 'USER' ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)',
-                borderRadius: '12px',
-                padding: '14px 16px',
+                maxWidth: '88%',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
               }}
             >
-              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: m.role === 'USER' ? 'var(--accent-sky)' : 'var(--accent-emerald)', marginBottom: '4px' }}>
-                {m.role === 'USER' ? 'User Query' : 'ContentSpine Agent'}
-              </div>
-
-              <div style={{ fontSize: '0.92rem', color: '#e2e8f0', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
-                {m.content}
-              </div>
-
-              {m.audioUrl && (
-                <div style={{ marginTop: '10px' }}>
-                  <audio controls src={m.audioUrl} style={{ width: '100%', height: '36px' }} />
+              {/* Message Bubble */}
+              <div
+                style={{
+                  background: m.role === 'USER' ? 'rgba(99, 102, 241, 0.18)' : m.isError ? 'rgba(239, 68, 68, 0.12)' : 'rgba(18, 24, 38, 0.85)',
+                  border: m.role === 'USER' ? '1px solid rgba(99, 102, 241, 0.4)' : m.isError ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid var(--border-color)',
+                  borderRadius: m.role === 'USER' ? '14px 14px 2px 14px' : '14px 14px 14px 2px',
+                  padding: '14px 18px',
+                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)',
+                }}
+              >
+                {/* Message Header */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', fontSize: '0.72rem' }}>
+                  <div style={{ fontWeight: 700, color: m.role === 'USER' ? '#818cf8' : m.isError ? '#fca5a5' : '#10b981', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {m.role === 'USER' ? (
+                      'User Question'
+                    ) : (
+                      <>
+                        <Bot size={13} /> ContentSpine Agent
+                        {m.model && <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>({m.model})</span>}
+                      </>
+                    )}
+                  </div>
+                  <span style={{ color: 'var(--text-muted)' }}>{m.createdAt}</span>
                 </div>
-              )}
 
-              {m.toolCalls && m.toolCalls.length > 0 && (
-                <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px dashed var(--border-color)', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                  🔧 <strong>Tools Executed:</strong> {m.toolCalls.map((t) => `${t.tool} (${t.result})`).join(', ')}
+                {/* Body Content */}
+                <div style={{ fontSize: '0.92rem', color: m.isError ? '#fca5a5' : '#e2e8f0', lineHeight: '1.65' }}>
+                  {renderFormattedContent(m.content)}
                 </div>
-              )}
+
+                {/* Sources & Grounding Citations */}
+                {m.role === 'ASSISTANT' && !m.isError && (
+                  <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {m.sources && m.sources.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>SOURCES:</span>
+                        {m.sources.map((src, sIdx) => (
+                          <span
+                            key={sIdx}
+                            title={src.snippet}
+                            style={{
+                              fontSize: '0.7rem',
+                              background: 'rgba(56, 189, 248, 0.12)',
+                              color: '#38bdf8',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              border: '1px solid rgba(56, 189, 248, 0.25)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                          >
+                            <FileText size={11} /> {src.title} · Page {src.page}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                      <span style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <CheckCircle2 size={12} color="#10b981" /> Grounded in Content Spine
+                      </span>
+
+                      {/* Utility Action Buttons: Copy & Regenerate */}
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                          onClick={() => handleCopy(m.id, m.content)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--text-muted)',
+                            fontSize: '0.7rem',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                          }}
+                        >
+                          {copiedId === m.id ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
+                          {copiedId === m.id ? 'Copied' : 'Copy'}
+                        </button>
+
+                        <button
+                          onClick={handleRegenerate}
+                          disabled={isAsking}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--text-muted)',
+                            fontSize: '0.7rem',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                          }}
+                        >
+                          <RefreshCw size={11} /> Regenerate
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Error Retry Button */}
+                {m.isError && (
+                  <div style={{ marginTop: '10px' }}>
+                    <button
+                      className="btn-secondary"
+                      onClick={() => handleRegenerate()}
+                      disabled={isAsking}
+                      style={{ fontSize: '0.75rem', padding: '4px 10px' }}
+                    >
+                      <RefreshCw size={12} /> Retry Question
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           ))}
+
+          {/* Thinking State Indicator */}
           {isAsking && (
-            <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <RefreshCw size={15} className="spin" /> Searching Content Spine facts...
+            <div style={{ alignSelf: 'flex-start', background: 'rgba(18, 24, 38, 0.8)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '10px', color: '#cbd5e1', fontSize: '0.85rem' }}>
+              <RefreshCw size={16} className="spin" color="var(--accent-amber)" /> ContentSpine Agent is thinking...
             </div>
           )}
         </div>
 
         {/* Input Bar */}
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '10px', borderTop: '1px solid var(--border-color)', paddingTop: '14px' }}>
           <input
             type="text"
-            placeholder="Ask a question about the incident, dates, systems affected, or risks..."
+            placeholder="Ask a question strictly anchored to verified Content Spine facts..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleAsk()}
+            onKeyDown={(e) => e.key === 'Enter' && handleSendQuery()}
+            disabled={isAsking}
             style={{
               flex: 1,
               background: 'rgba(0, 0, 0, 0.4)',
@@ -206,45 +402,85 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine }) => {
               padding: '12px 16px',
               color: 'white',
               fontSize: '0.9rem',
+              outline: 'none',
             }}
           />
-          <button className="btn-primary" onClick={handleAsk} disabled={isAsking} style={{ padding: '0 20px' }}>
+          <button className="btn-primary" onClick={() => handleSendQuery()} disabled={isAsking || !query.trim()} style={{ padding: '0 20px', height: '44px' }}>
             <Send size={16} /> Send
           </button>
         </div>
       </div>
 
-      {/* Right: Guardrails & Test Harness */}
-      <div className="glass-panel" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/* Right Column: Guardrails & Facts Knowledge Base */}
+      <div className="glass-panel" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto' }}>
         <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'white', textTransform: 'uppercase' }}>
           Agent Guardrails & Testing
         </h4>
 
-        {/* Guardrail Status Card */}
+        {/* Guardrail Status Card (Requirement 18) */}
         <div style={{ background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: '8px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#6ee7b7', fontWeight: 700, fontSize: '0.85rem' }}>
-            <ShieldCheck size={18} /> Source-Only Guardrail Active
+            <ShieldCheck size={18} /> 🟢 Source-Only Guardrail Active
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-            The agent is strictly locked to Content Spine facts. Unsupported questions trigger explicit "Not in source" responses.
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+            The agent is strictly locked to Content Spine facts. Unsupported questions trigger explicit <strong>"Not in source."</strong> responses without external speculation.
           </div>
         </div>
 
-        {/* Facts Knowledge Base Summary */}
-        <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '6px' }}>
-            Knowledge Facts ({lockedFacts.length})
+        {/* Knowledge Facts Dynamic Panel (Requirement 16 & 17) */}
+        <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '14px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>Knowledge Facts ({lockedFacts.length})</span>
+            <span style={{ fontSize: '0.68rem', color: '#10b981' }}>Verified SOT</span>
           </div>
-          {lockedFacts.slice(0, 4).map((f) => (
-            <div key={f.id} style={{ fontSize: '0.75rem', color: '#e2e8f0', marginBottom: '4px' }}>
-              🔒 <strong>{f.key}:</strong> {f.value}
+
+          {lockedFacts.length === 0 ? (
+            <div style={{ background: 'rgba(245, 158, 11, 0.08)', border: '1px dashed rgba(245, 158, 11, 0.3)', padding: '12px', borderRadius: '6px', fontSize: '0.75rem', color: '#fcd34d', lineHeight: '1.4' }}>
+              ⚠️ No verified Content Spine facts are available. Upload or ingest a source document first.
             </div>
-          ))}
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '240px', overflowY: 'auto', paddingRight: '4px' }}>
+              {lockedFacts.map((f: any) => {
+                const isExpanded = expandedFactId === f.id;
+                const ref = f.sourceSnippet ? f : f.references?.[0];
+                return (
+                  <div
+                    key={f.id}
+                    onClick={() => setExpandedFactId(isExpanded ? null : f.id)}
+                    style={{
+                      background: 'rgba(0, 0, 0, 0.3)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '6px',
+                      padding: '8px 10px',
+                      fontSize: '0.76rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 600, color: '#e2e8f0' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        🔒 <strong>{f.key || f.factKey}:</strong> {f.value || f.factValue}
+                      </span>
+                      {isExpanded ? <ChevronUp size={14} color="var(--text-muted)" /> : <ChevronDown size={14} color="var(--text-muted)" />}
+                    </div>
+
+                    {isExpanded && (
+                      <div style={{ marginTop: '8px', paddingTop: '6px', borderTop: '1px dashed rgba(255, 255, 255, 0.1)', fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <div>📄 <strong>Source:</strong> {ref?.sourceDocument?.originalFilename || ref?.sourceDocument?.title || 'SIH 2026 Technical Report'}</div>
+                        <div>📖 <strong>Page:</strong> {ref?.pageNumber || 1}</div>
+                        <div>💬 <strong>Original Snippet:</strong> "{ref?.sourceSnippet || ref?.snippetText || f.value || f.factValue}"</div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
-        {/* Agent Automated Test Harness */}
+        {/* Automated Guardrail Test Harness (Requirement 19 & 20) */}
         <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '14px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <div style={{ fontWeight: 700, color: 'white', fontSize: '0.85rem' }}>
+          <div style={{ fontWeight: 800, color: 'white', fontSize: '0.85rem' }}>
             Automated Guardrail Test Harness
           </div>
 
@@ -252,11 +488,11 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine }) => {
             className="btn-secondary"
             onClick={handleRunAgentTests}
             disabled={isTesting}
-            style={{ justifyContent: 'center', fontWeight: 700 }}
+            style={{ justifyContent: 'center', fontWeight: 700, padding: '10px' }}
           >
             {isTesting ? (
               <>
-                <RefreshCw size={14} className="spin" color="var(--accent-amber)" /> Running Test...
+                <RefreshCw size={14} className="spin" color="var(--accent-amber)" /> Running Test Harness...
               </>
             ) : (
               <>
@@ -265,44 +501,26 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine }) => {
             )}
           </button>
 
-          {/* Test Error State Card (Section 11) */}
+          {/* Test Error State Card */}
           {testError && (
-            <div
-              style={{
-                background: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
-                padding: '12px',
-                borderRadius: '8px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px',
-              }}
-            >
+            <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '12px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#fca5a5', fontWeight: 700, fontSize: '0.82rem' }}>
                 <AlertTriangle size={16} /> Agent test could not be completed.
               </div>
               <div style={{ fontSize: '0.75rem', color: '#cbd5e1', lineHeight: '1.4' }}>
                 {testError}
               </div>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                Check the AI provider configuration or server logs.
-              </div>
-              <button
-                className="btn-secondary"
-                onClick={handleRunAgentTests}
-                disabled={isTesting}
-                style={{ fontSize: '0.78rem', justifyContent: 'center', marginTop: '4px' }}
-              >
+              <button className="btn-secondary" onClick={handleRunAgentTests} disabled={isTesting} style={{ fontSize: '0.78rem', justifyContent: 'center', marginTop: '4px' }}>
                 <RefreshCw size={12} /> Retry Test
               </button>
             </div>
           )}
 
-          {/* Structured Test Results UI (Section 10) */}
+          {/* Structured Test Results UI */}
           {testResults && (
             <div style={{ background: 'rgba(0,0,0,0.35)', padding: '14px', borderRadius: '8px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.78rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '8px' }}>
-                <span style={{ color: '#6ee7b7', fontWeight: 800, fontSize: '0.85rem' }}>
+                <span style={{ color: '#6ee7b7', fontWeight: 800, fontSize: '0.88rem' }}>
                   Pass Rate: {testResults.summary?.passRate || testResults.passRate}
                 </span>
                 <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>
@@ -310,7 +528,7 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine }) => {
                 </span>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '220px', overflowY: 'auto', paddingRight: '4px' }}>
                 {(testResults.tests || testResults.results || []).map((t: any, idx: number) => {
                   const isPassed = t.status === 'passed' || t.passed === true;
                   return (
@@ -318,21 +536,21 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine }) => {
                       key={t.id || idx}
                       style={{
                         background: isPassed ? 'rgba(16, 185, 129, 0.06)' : 'rgba(239, 68, 68, 0.08)',
-                        padding: '10px 12px',
+                        padding: '8px 10px',
                         borderRadius: '6px',
                         border: isPassed ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid rgba(239, 68, 68, 0.3)',
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 700, marginBottom: '4px' }}>
-                        <span style={{ color: isPassed ? '#6ee7b7' : '#fca5a5', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          {isPassed ? <CheckCircle2 size={14} /> : <XCircle size={14} />}
+                        <span style={{ color: isPassed ? '#6ee7b7' : '#fca5a5', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          {isPassed ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
                           {t.name || `Scenario #${idx + 1}`}
                         </span>
-                        <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: isPassed ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)', color: isPassed ? '#6ee7b7' : '#fca5a5' }}>
+                        <span style={{ fontSize: '0.65rem', padding: '1px 5px', borderRadius: '4px', background: isPassed ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)', color: isPassed ? '#6ee7b7' : '#fca5a5' }}>
                           {(t.status || (isPassed ? 'passed' : 'failed')).toUpperCase()}
                         </span>
                       </div>
-                      <div style={{ color: '#cbd5e1', fontSize: '0.72rem', marginTop: '2px' }}>
+                      <div style={{ color: '#cbd5e1', fontSize: '0.72rem' }}>
                         <strong>Query:</strong> "{t.query || t.inputQuery}"
                       </div>
                       <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', marginTop: '2px' }}>

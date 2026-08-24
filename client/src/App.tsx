@@ -247,6 +247,7 @@ export function App() {
               <AgentsPage
                 projectId={projectData?.id || 'demo-project'}
                 spine={spineData}
+                selectedProvider={selectedProvider}
               />
             )}
 

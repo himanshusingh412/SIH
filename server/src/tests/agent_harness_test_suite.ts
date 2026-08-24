@@ -47,7 +47,7 @@ async function runAgentHarnessTestSuite() {
   const testReport = await agentService.runAgentTest(agent.id, [
     { query: 'How many systems were affected?', expectedAnswerSnippet: '11' },
     { query: 'What date did the incident occur?', expectedAnswerSnippet: '21 October 2026' },
-    { query: 'Who is the president of Mars?', expectedAnswerSnippet: "couldn't find" },
+    { query: 'Who is the president of Mars?', expectedAnswerSnippet: 'Not in source.' },
   ], testProject.id);
 
   if (testReport.status !== 'completed' || testReport.summary.total !== 3) {

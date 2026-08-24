@@ -221,7 +221,22 @@ export const apiClient = {
       body: JSON.stringify({ injections }),
     }),
 
-  runAgentTest: (projectId?: string, agentId?: string, testCases?: any[]) =>
+  askKnowledgeAgent: (projectId: string, message: string, conversationId?: string, provider?: string) =>
+    request<{
+      answer: string;
+      provider: string;
+      model: string;
+      conversationId: string;
+      sources: Array<{ documentId: string; page: number; title: string; snippet: string }>;
+      grounded: boolean;
+      toolCalls?: any[];
+    }>('/agents/knowledge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId, message, conversationId, provider }),
+    }),
+
+  runAgentTest: (projectId?: string, agentId?: string, testCases?: any[], provider?: string) =>
     request<{
       testId: string;
       agentId: string;
@@ -231,6 +246,6 @@ export const apiClient = {
     }>('/agents/test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ projectId, agentId: agentId || 'demo-agent-id', testCases }),
+      body: JSON.stringify({ projectId, agentId: agentId || 'demo-agent-id', testCases, provider }),
     }),
 };

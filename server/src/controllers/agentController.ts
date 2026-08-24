@@ -3,38 +3,70 @@ import { agentService } from '../services/agentService';
 import { prisma } from '../config';
 import { sendSuccess, sendError } from '../utils/response';
 
-export const askAgentHandler = async (req: Request, res: Response): Promise<void> => {
+/**
+ * POST /api/agents/knowledge and POST /api/agents/ask
+ */
+export const knowledgeAgentHandler = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { projectId, query, sessionId } = req.body;
-    if (!projectId || !query) {
-      sendError(res, 'projectId and query are required', 400, 'INVALID_REQUEST');
+    const projectId = req.body.projectId;
+    const message = req.body.message || req.body.query;
+    const conversationId = req.body.conversationId || req.body.sessionId;
+    const provider = req.body.provider;
+
+    if (!projectId || typeof projectId !== 'string') {
+      sendError(res, 'projectId is required and must be a string.', 400, 'INVALID_REQUEST');
       return;
     }
 
-    const result = await agentService.askAgent(projectId, query, sessionId);
-    sendSuccess(res, result);
+    if (!message || typeof message !== 'string' || !message.trim()) {
+      sendError(res, 'message is required and must be a non-empty string.', 400, 'INVALID_REQUEST');
+      return;
+    }
+
+    const result = await agentService.askKnowledgeAgent(projectId, message, conversationId, provider);
+
+    if (result.success === false) {
+      res.status(400).json(result);
+      return;
+    }
+
+    sendSuccess(res, result.data);
   } catch (error: any) {
-    sendError(res, error.message || 'Agent query failed', 500, 'AGENT_QUERY_FAILED');
+    console.error('❌ Knowledge Agent Query Error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'AGENT_QUERY_FAILED',
+        message: error.message || 'Gemini could not answer right now.',
+      },
+    });
   }
 };
 
+/**
+ * POST /api/agents/test
+ */
 export const testAgentHandler = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { agentId = 'demo-agent-id', projectId, testCases } = req.body;
+    const { agentId = 'demo-agent-id', projectId, testCases, provider } = req.body;
 
-    const result = await agentService.runAgentTest(agentId, testCases, projectId);
+    const result = await agentService.runAgentTest(agentId, testCases, projectId, provider);
     sendSuccess(res, result);
   } catch (error: any) {
     console.error('❌ Agent Test Handler Failure:', error);
-    sendError(
-      res,
-      error.message || 'The hallucination and fact test could not be completed.',
-      500,
-      'AGENT_TEST_FAILED'
-    );
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'AGENT_TEST_FAILED',
+        message: error.message || 'The hallucination and fact test could not be completed.',
+      },
+    });
   }
 };
 
+/**
+ * GET /api/agents/analytics
+ */
 export const getAnalyticsHandler = async (_req: Request, res: Response): Promise<void> => {
   try {
     const totalProjects = await prisma.project.count();
