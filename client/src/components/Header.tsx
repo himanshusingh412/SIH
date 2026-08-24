@@ -54,6 +54,7 @@ export const Header: React.FC<HeaderProps> = ({
         >
           <Cpu size={15} color="#38bdf8" />
           <select
+            aria-label="Select AI Provider"
             value={selectedProvider}
             onChange={(e) => setSelectedProvider(e.target.value)}
             style={{
