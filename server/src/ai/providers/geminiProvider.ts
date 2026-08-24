@@ -1,6 +1,8 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { config } from '../../config';
 import { AudienceProfile, ContentSpineData, InputCategory, OutputType, ValidationIssue } from '../../types';
+import { parseGeminiError } from '../../utils/geminiErrorHandler';
+import { providerHealthTracker } from '../../services/providerHealthService';
 import { AIProviderInstance, ProviderType } from './types';
 
 export class GeminiProvider implements AIProviderInstance {
@@ -16,14 +18,16 @@ export class GeminiProvider implements AIProviderInstance {
   }
 
   /**
-   * Health/Connectivity Test
+   * Health/Connectivity Test (Fired ONLY when user explicitly tests provider)
    */
-  async testConnection(): Promise<{ success: boolean; model: string; message?: string }> {
+  async testConnection(): Promise<{ success: boolean; model: string; message?: string; status?: string; retryAfterSeconds?: number }> {
     const apiKey = this.getApiKey();
     if (!apiKey) {
+      providerHealthTracker.recordError('gemini', 'Gemini API key is not configured on the server.');
       return {
         success: false,
         model: this.getModelName(),
+        status: 'not_configured',
         message: 'Gemini API key is not configured on the server.',
       };
     }
@@ -32,15 +36,30 @@ export class GeminiProvider implements AIProviderInstance {
       const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ model: this.getModelName() });
       await model.generateContent('ping');
+      providerHealthTracker.recordSuccess('gemini');
       return {
         success: true,
         model: this.getModelName(),
+        status: 'connected',
       };
     } catch (err: any) {
+      const rateInfo = parseGeminiError(err);
+      if (rateInfo.isRateLimited) {
+        providerHealthTracker.recordRateLimit('gemini', rateInfo.retryAfterSeconds, rateInfo.message);
+        return {
+          success: false,
+          model: this.getModelName(),
+          status: 'rate_limited',
+          retryAfterSeconds: rateInfo.retryAfterSeconds,
+          message: rateInfo.message,
+        };
+      }
+      providerHealthTracker.recordError('gemini', rateInfo.message);
       return {
         success: false,
         model: this.getModelName(),
-        message: err.message || 'Failed to connect to Google Gemini API.',
+        status: 'unavailable',
+        message: rateInfo.message,
       };
     }
   }
@@ -59,9 +78,20 @@ export class GeminiProvider implements AIProviderInstance {
       if (!text) {
         throw new Error('Gemini returned an empty text response.');
       }
+      providerHealthTracker.recordSuccess('gemini');
       return text;
     } catch (err: any) {
-      throw new Error(`Gemini is currently unavailable: ${err.message || err}`);
+      const rateInfo = parseGeminiError(err);
+      if (rateInfo.isRateLimited) {
+        providerHealthTracker.recordRateLimit('gemini', rateInfo.retryAfterSeconds, rateInfo.message);
+        const rateErr: any = new Error(rateInfo.message);
+        rateErr.code = 'GEMINI_RATE_LIMITED';
+        rateErr.status = 429;
+        rateErr.retryAfterSeconds = rateInfo.retryAfterSeconds;
+        throw rateErr;
+      }
+      providerHealthTracker.recordError('gemini', rateInfo.message);
+      throw new Error(rateInfo.message);
     }
   }
 
@@ -101,6 +131,7 @@ ${rawText.slice(0, 5000)}`;
         const parsed = JSON.parse(jsonMatch[0]);
         if (parsed && parsed.summary) {
           const lockedFacts = [...(parsed.dates || []), ...(parsed.numbers || [])].map((f) => ({ ...f, isLocked: true }));
+          providerHealthTracker.recordSuccess('gemini');
           return {
             summary: parsed.summary,
             entities: parsed.entities || [],
@@ -118,7 +149,17 @@ ${rawText.slice(0, 5000)}`;
       }
       throw new Error('Gemini output could not be parsed into valid Content Spine JSON format.');
     } catch (err: any) {
-      throw new Error(`Gemini extraction failed: ${err.message || err}`);
+      const rateInfo = parseGeminiError(err);
+      if (rateInfo.isRateLimited) {
+        providerHealthTracker.recordRateLimit('gemini', rateInfo.retryAfterSeconds, rateInfo.message);
+        const rateErr: any = new Error(rateInfo.message);
+        rateErr.code = 'GEMINI_RATE_LIMITED';
+        rateErr.status = 429;
+        rateErr.retryAfterSeconds = rateInfo.retryAfterSeconds;
+        throw rateErr;
+      }
+      providerHealthTracker.recordError('gemini', rateInfo.message);
+      throw new Error(rateInfo.message);
     }
   }
 
@@ -161,12 +202,23 @@ FORMATTING INSTRUCTIONS:
         .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
         .join(' ');
 
+      providerHealthTracker.recordSuccess('gemini');
       return {
         title: `${formattedType} (Gemini)`,
         content: text || 'Gemini output generation completed.',
       };
     } catch (err: any) {
-      throw new Error(`Gemini is currently unavailable: ${err.message || err}`);
+      const rateInfo = parseGeminiError(err);
+      if (rateInfo.isRateLimited) {
+        providerHealthTracker.recordRateLimit('gemini', rateInfo.retryAfterSeconds, rateInfo.message);
+        const rateErr: any = new Error(rateInfo.message);
+        rateErr.code = 'GEMINI_RATE_LIMITED';
+        rateErr.status = 429;
+        rateErr.retryAfterSeconds = rateInfo.retryAfterSeconds;
+        throw rateErr;
+      }
+      providerHealthTracker.recordError('gemini', rateInfo.message);
+      throw new Error(rateInfo.message);
     }
   }
 

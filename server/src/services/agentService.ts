@@ -21,6 +21,17 @@ export class AgentService {
     });
 
     if (!agent) {
+      let project = await prisma.project.findUnique({ where: { id: projectId } });
+      if (!project) {
+        project = await prisma.project.create({
+          data: {
+            id: projectId,
+            title: `Project ${projectId}`,
+            description: 'SIH ContentSpine Project',
+          },
+        });
+      }
+
       const defaultGuardrails: AgentGuardrails = {
         sourceOnly: true,
         piiFilter: true,
@@ -74,7 +85,7 @@ export class AgentService {
       },
     });
 
-    if (!spine || !spine.facts || spine.facts.length === 0) {
+    if ((!spine || !spine.facts || spine.facts.length === 0) && (projectId === 'demo-project' || projectId === 'default')) {
       spine = await prisma.contentSpine.findFirst({
         orderBy: { createdAt: 'desc' },
         include: {
@@ -92,8 +103,8 @@ export class AgentService {
       });
     }
 
-    // Auto-seed if SQLite in-memory/tmp database is empty on Vercel cold container
-    if (!spine || !spine.facts || spine.facts.length === 0) {
+    // Auto-seed if SQLite in-memory/tmp database is empty on Vercel cold container (demo project ONLY)
+    if ((!spine || !spine.facts || spine.facts.length === 0) && (projectId === 'demo-project' || projectId === 'default')) {
       try {
         const seeded = await projectService.seedDemoProject();
         if (seeded && seeded.projectId) {
@@ -118,13 +129,13 @@ export class AgentService {
       }
     }
 
-    // Requirement 3: If no verified facts/source contents exist for this project
+    // Requirement 22 & 23: If no verified facts/source contents exist for this project, DO NOT call Gemini API!
     if (!spine || !spine.facts || spine.facts.length === 0) {
       return {
         success: false,
         error: {
           code: 'NO_KNOWLEDGE_CONTEXT',
-          message: 'No verified Content Spine facts are available for this project yet. Please upload or ingest a source document first.',
+          message: 'Not in source. No verified Content Spine facts are currently available. Please upload or ingest a source document first.',
         },
       };
     }
@@ -209,7 +220,7 @@ export class AgentService {
       (m) => `${m.role === 'USER' ? 'User' : 'Agent'}: ${m.content}`
     );
 
-    // System Prompt for Knowledge Agent (Requirement 4 & 9)
+    // System Prompt for Knowledge Agent
     const systemInstruction = `You are the ContentSpine Knowledge Agent.
 Answer questions ONLY using the verified Content Spine context and locked facts supplied with this request.
 Do not invent facts.
@@ -266,12 +277,19 @@ Answer cleanly and accurately using ONLY the facts above. If not present in the 
         ).then((r) => r.content);
       }
     } catch (err: any) {
+      if (err.code === 'GEMINI_RATE_LIMITED' || err.status === 429) {
+        const rateErr: any = new Error(err.message || 'Gemini is temporarily rate-limited.');
+        rateErr.code = 'GEMINI_RATE_LIMITED';
+        rateErr.status = 429;
+        rateErr.retryAfterSeconds = err.retryAfterSeconds || 45;
+        throw rateErr;
+      }
       throw new Error(`Gemini could not answer right now. (${err.message || 'API request failed'})`);
     }
 
     let finalAnswer = rawAnswer ? rawAnswer.trim() : 'Not in source.';
 
-    // Grounding Check (Requirement 9 & 21)
+    // Grounding Check
     const lowerAns = finalAnswer.toLowerCase();
     const isNotInSource =
       lowerAns.includes('not in source') ||
@@ -321,7 +339,7 @@ Answer cleanly and accurately using ONLY the facts above. If not present in the 
   }
 
   /**
-   * Run Real Guardrail & Hallucination Test Suite (Requirement 19 & 20)
+   * Run Real Guardrail & Hallucination Test Suite Sequentially (Requirement 12)
    */
   async runAgentTest(
     agentId: string,
@@ -427,15 +445,21 @@ Answer cleanly and accurately using ONLY the facts above. If not present in the 
             : `Fact check failed. Expected "${test.expectedAnswerSnippet}" in response.`,
         });
       } catch (err: any) {
+        const isRateLimit = err.code === 'GEMINI_RATE_LIMITED' || err.status === 429 || err.message?.includes('rate-limited');
         testResults.push({
           id: test.id,
           name: test.name,
           query: test.query,
           expected: test.expectedAnswerSnippet,
-          actual: `Error: ${err.message}`,
-          status: 'failed',
-          details: err.message,
+          actual: isRateLimit ? 'Gemini Temporarily Rate-Limited (HTTP 429)' : `Error: ${err.message}`,
+          status: isRateLimit ? 'rate_limited' : 'failed',
+          details: isRateLimit ? 'Gemini API free-tier rate limit reached. Test halted safely.' : err.message,
         });
+
+        if (isRateLimit) {
+          // Abort subsequent test cases to respect rate limits
+          break;
+        }
       }
     }
 

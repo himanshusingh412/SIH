@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Bot,
   Send,
@@ -45,6 +45,31 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine, select
   const [expandedFactId, setExpandedFactId] = useState<string | null>(null);
   const [voiceNotice, setVoiceNotice] = useState<boolean>(false);
 
+  // Rate limit state & countdown tracker (Requirements 4, 7, 16)
+  const [rateLimitInfo, setRateLimitInfo] = useState<{
+    retryAfterSeconds: number;
+    remainingSeconds: number;
+  } | null>(null);
+
+  // Live countdown timer for rate-limit window
+  useEffect(() => {
+    if (!rateLimitInfo || rateLimitInfo.remainingSeconds <= 0) return;
+
+    const timer = setInterval(() => {
+      setRateLimitInfo((prev) => {
+        if (!prev) return null;
+        const next = prev.remainingSeconds - 1;
+        if (next <= 0) {
+          return { ...prev, remainingSeconds: 0 };
+        }
+        return { ...prev, remainingSeconds: next };
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [rateLimitInfo?.remainingSeconds]);
+
+  // Requirement 9 & 10: Static greeting message initialized without consuming Gemini quota on mount
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'msg-welcome',
@@ -68,6 +93,8 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine, select
     const textToSend = customMessage || query;
     if (!textToSend.trim() || isAsking) return;
 
+    // Requirement 8: Single-flight request lock
+    setIsAsking(true);
     if (!customMessage) {
       setQuery('');
     }
@@ -81,7 +108,25 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine, select
     };
 
     setMessages((prev) => [...prev, userMsg]);
-    setIsAsking(true);
+
+    // Requirement 22 & 23: DO NOT call Gemini if Knowledge Facts = 0
+    if (!lockedFacts || lockedFacts.length === 0) {
+      setTimeout(() => {
+        const noFactMsg: ChatMessage = {
+          id: `asst-${Date.now()}`,
+          role: 'ASSISTANT',
+          content: 'Not in source. No verified Content Spine facts are currently available. Please upload or ingest a source document first.',
+          provider: selectedProvider,
+          model: selectedProvider === 'gemini' ? 'gemini-3.1-flash-lite' : selectedProvider === 'openai' ? 'gpt-4o' : 'Demo Mode',
+          grounded: true,
+          sources: [],
+          createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        };
+        setMessages((prev) => [...prev, noFactMsg]);
+        setIsAsking(false);
+      }, 200);
+      return;
+    }
 
     try {
       const res = await apiClient.askKnowledgeAgent(
@@ -95,6 +140,9 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine, select
         if (res.conversationId) {
           setConversationId(res.conversationId);
         }
+
+        // Successful request clears any previous rate limit state
+        setRateLimitInfo(null);
 
         const assistantMsg: ChatMessage = {
           id: `asst-${Date.now()}`,
@@ -112,14 +160,33 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine, select
         throw new Error('The agent returned an empty response.');
       }
     } catch (err: any) {
-      const errorMsg: ChatMessage = {
-        id: `err-${Date.now()}`,
-        role: 'ASSISTANT',
-        content: `Gemini could not answer right now. (${err.message || 'Request failed'})`,
-        isError: true,
-        createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      };
-      setMessages((prev) => [...prev, errorMsg]);
+      const isRateLimit = err?.code === 'GEMINI_RATE_LIMITED' || err?.statusCode === 429;
+      const retryAfter = err?.retryAfterSeconds || 45;
+
+      if (isRateLimit) {
+        setRateLimitInfo({
+          retryAfterSeconds: retryAfter,
+          remainingSeconds: retryAfter,
+        });
+
+        const errorMsg: ChatMessage = {
+          id: `err-${Date.now()}`,
+          role: 'ASSISTANT',
+          content: `🟡 **Gemini is temporarily rate-limited.**\n\nToo many requests were sent in a short period. Please try again shortly.`,
+          isError: true,
+          createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        };
+        setMessages((prev) => [...prev, errorMsg]);
+      } else {
+        const errorMsg: ChatMessage = {
+          id: `err-${Date.now()}`,
+          role: 'ASSISTANT',
+          content: `Gemini could not answer right now. (${err.message || 'Request failed'})`,
+          isError: true,
+          createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        };
+        setMessages((prev) => [...prev, errorMsg]);
+      }
     } finally {
       setIsAsking(false);
     }
@@ -132,6 +199,7 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine, select
   };
 
   const handleRegenerate = () => {
+    if (isAsking || (rateLimitInfo && rateLimitInfo.remainingSeconds > 0)) return;
     const lastUserMsg = [...messages].reverse().find((m) => m.role === 'USER');
     if (lastUserMsg) {
       handleSendQuery(lastUserMsg.content);
@@ -143,7 +211,9 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine, select
     setTimeout(() => setVoiceNotice(false), 4000);
   };
 
+  // Requirement 12: Sequential test execution with rate limit awareness
   const handleRunAgentTests = async () => {
+    if (isTesting || (rateLimitInfo && rateLimitInfo.remainingSeconds > 0)) return;
     setIsTesting(true);
     setTestError(null);
     try {
@@ -151,7 +221,17 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine, select
       setTestResults(data);
     } catch (err: any) {
       console.error('❌ Agent Test UI Error:', err);
-      setTestError(err.message || 'The hallucination and fact test could not be completed.');
+      const isRateLimit = err?.code === 'GEMINI_RATE_LIMITED' || err?.statusCode === 429;
+      if (isRateLimit) {
+        const retryAfter = err?.retryAfterSeconds || 45;
+        setRateLimitInfo({
+          retryAfterSeconds: retryAfter,
+          remainingSeconds: retryAfter,
+        });
+        setTestError(`Gemini is temporarily rate-limited. Test suite paused. Retry available in ${retryAfter}s.`);
+      } else {
+        setTestError(err.message || 'The hallucination and fact test could not be completed.');
+      }
       setTestResults(null);
     } finally {
       setIsTesting(false);
@@ -166,7 +246,6 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine, select
         {lines.map((line, lIdx) => {
           if (!line.trim()) return <div key={lIdx} style={{ height: '4px' }} />;
 
-          // Heading
           if (line.startsWith('# ')) {
             return (
               <h3 key={lIdx} style={{ fontSize: '1.05rem', fontWeight: 800, color: 'white', margin: '4px 0' }}>
@@ -182,7 +261,6 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine, select
             );
           }
 
-          // Bullet list
           if (line.startsWith('* ') || line.startsWith('- ')) {
             return (
               <div key={lIdx} style={{ display: 'flex', gap: '6px', marginLeft: '8px' }}>
@@ -198,7 +276,6 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine, select
     );
   };
 
-  // Parse **bold** and *italic*
   const parseInlineFormatting = (text: string) => {
     const parts = text.split(/(\*\*.*?\*\*|\*.*?\*)/g);
     return parts.map((part, i) => {
@@ -244,6 +321,54 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine, select
           </div>
         )}
 
+        {/* Friendly Rate Limit Banner Card (Requirement 3, 4, 7, 16) */}
+        {rateLimitInfo && (
+          <div
+            style={{
+              background: 'rgba(245, 158, 11, 0.12)',
+              border: '1px solid rgba(245, 158, 11, 0.35)',
+              borderRadius: '10px',
+              padding: '16px 18px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px',
+              color: '#fef3c7',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 800, fontSize: '0.95rem', color: '#f59e0b' }}>
+              <AlertTriangle size={20} />
+              <span>🟡 Gemini is temporarily rate-limited.</span>
+            </div>
+            <div style={{ fontSize: '0.85rem', color: '#cbd5e1', lineHeight: '1.45' }}>
+              Too many requests were sent in a short period. Please try again shortly.
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+              <span style={{ fontSize: '0.82rem', color: '#fcd34d', fontWeight: 700 }}>
+                {rateLimitInfo.remainingSeconds > 0
+                  ? `Retry available in ${rateLimitInfo.remainingSeconds}s`
+                  : 'Retry is now available!'}
+              </span>
+
+              <button
+                className="btn-secondary"
+                onClick={handleRegenerate}
+                disabled={isAsking || rateLimitInfo.remainingSeconds > 0}
+                style={{
+                  padding: '6px 14px',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  opacity: isAsking || rateLimitInfo.remainingSeconds > 0 ? 0.5 : 1,
+                  cursor: isAsking || rateLimitInfo.remainingSeconds > 0 ? 'not-allowed' : 'pointer',
+                }}
+              >
+                <RefreshCw size={13} className={isAsking ? 'spin' : ''} /> Retry
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Message Thread */}
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px', paddingRight: '6px' }}>
           {messages.map((m) => (
@@ -260,8 +385,8 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine, select
               {/* Message Bubble */}
               <div
                 style={{
-                  background: m.role === 'USER' ? 'rgba(99, 102, 241, 0.18)' : m.isError ? 'rgba(239, 68, 68, 0.12)' : 'rgba(18, 24, 38, 0.85)',
-                  border: m.role === 'USER' ? '1px solid rgba(99, 102, 241, 0.4)' : m.isError ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid var(--border-color)',
+                  background: m.role === 'USER' ? 'rgba(99, 102, 241, 0.18)' : m.isError ? 'rgba(245, 158, 11, 0.12)' : 'rgba(18, 24, 38, 0.85)',
+                  border: m.role === 'USER' ? '1px solid rgba(99, 102, 241, 0.4)' : m.isError ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid var(--border-color)',
                   borderRadius: m.role === 'USER' ? '14px 14px 2px 14px' : '14px 14px 14px 2px',
                   padding: '14px 18px',
                   boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)',
@@ -269,7 +394,7 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine, select
               >
                 {/* Message Header */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', fontSize: '0.72rem' }}>
-                  <div style={{ fontWeight: 700, color: m.role === 'USER' ? '#818cf8' : m.isError ? '#fca5a5' : '#10b981', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div style={{ fontWeight: 700, color: m.role === 'USER' ? '#818cf8' : m.isError ? '#f59e0b' : '#10b981', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     {m.role === 'USER' ? (
                       'User Question'
                     ) : (
@@ -283,7 +408,7 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine, select
                 </div>
 
                 {/* Body Content */}
-                <div style={{ fontSize: '0.92rem', color: m.isError ? '#fca5a5' : '#e2e8f0', lineHeight: '1.65' }}>
+                <div style={{ fontSize: '0.92rem', color: m.isError ? '#fef3c7' : '#e2e8f0', lineHeight: '1.65' }}>
                   {renderFormattedContent(m.content)}
                 </div>
 
@@ -341,13 +466,14 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine, select
 
                         <button
                           onClick={handleRegenerate}
-                          disabled={isAsking}
+                          disabled={isAsking || Boolean(rateLimitInfo && rateLimitInfo.remainingSeconds > 0)}
                           style={{
                             background: 'none',
                             border: 'none',
                             color: 'var(--text-muted)',
                             fontSize: '0.7rem',
-                            cursor: 'pointer',
+                            cursor: isAsking || (rateLimitInfo && rateLimitInfo.remainingSeconds > 0) ? 'not-allowed' : 'pointer',
+                            opacity: isAsking || (rateLimitInfo && rateLimitInfo.remainingSeconds > 0) ? 0.5 : 1,
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: '3px',
@@ -366,10 +492,15 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine, select
                     <button
                       className="btn-secondary"
                       onClick={() => handleRegenerate()}
-                      disabled={isAsking}
-                      style={{ fontSize: '0.75rem', padding: '4px 10px' }}
+                      disabled={isAsking || Boolean(rateLimitInfo && rateLimitInfo.remainingSeconds > 0)}
+                      style={{
+                        fontSize: '0.75rem',
+                        padding: '4px 10px',
+                        opacity: isAsking || (rateLimitInfo && rateLimitInfo.remainingSeconds > 0) ? 0.5 : 1,
+                        cursor: isAsking || (rateLimitInfo && rateLimitInfo.remainingSeconds > 0) ? 'not-allowed' : 'pointer',
+                      }}
                     >
-                      <RefreshCw size={12} /> Retry Question
+                      <RefreshCw size={12} /> {rateLimitInfo && rateLimitInfo.remainingSeconds > 0 ? `Retry in ${rateLimitInfo.remainingSeconds}s` : 'Retry Question'}
                     </button>
                   </div>
                 )}
@@ -392,8 +523,8 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine, select
             placeholder="Ask a question strictly anchored to verified Content Spine facts..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSendQuery()}
-            disabled={isAsking}
+            onKeyDown={(e) => e.key === 'Enter' && !isAsking && handleSendQuery()}
+            disabled={isAsking || Boolean(rateLimitInfo && rateLimitInfo.remainingSeconds > 0)}
             style={{
               flex: 1,
               background: 'rgba(0, 0, 0, 0.4)',
@@ -403,9 +534,20 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine, select
               color: 'white',
               fontSize: '0.9rem',
               outline: 'none',
+              opacity: isAsking || (rateLimitInfo && rateLimitInfo.remainingSeconds > 0) ? 0.6 : 1,
             }}
           />
-          <button className="btn-primary" onClick={() => handleSendQuery()} disabled={isAsking || !query.trim()} style={{ padding: '0 20px', height: '44px' }}>
+          <button
+            className="btn-primary"
+            onClick={() => handleSendQuery()}
+            disabled={isAsking || !query.trim() || Boolean(rateLimitInfo && rateLimitInfo.remainingSeconds > 0)}
+            style={{
+              padding: '0 20px',
+              height: '44px',
+              opacity: isAsking || !query.trim() || (rateLimitInfo && rateLimitInfo.remainingSeconds > 0) ? 0.5 : 1,
+              cursor: isAsking || !query.trim() || (rateLimitInfo && rateLimitInfo.remainingSeconds > 0) ? 'not-allowed' : 'pointer',
+            }}
+          >
             <Send size={16} /> Send
           </button>
         </div>
@@ -417,7 +559,7 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine, select
           Agent Guardrails & Testing
         </h4>
 
-        {/* Guardrail Status Card (Requirement 18) */}
+        {/* Guardrail Status Card */}
         <div style={{ background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: '8px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#6ee7b7', fontWeight: 700, fontSize: '0.85rem' }}>
             <ShieldCheck size={18} /> 🟢 Source-Only Guardrail Active
@@ -427,7 +569,7 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine, select
           </div>
         </div>
 
-        {/* Knowledge Facts Dynamic Panel (Requirement 16 & 17) */}
+        {/* Knowledge Facts Dynamic Panel */}
         <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '14px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
           <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>Knowledge Facts ({lockedFacts.length})</span>
@@ -478,7 +620,7 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine, select
           )}
         </div>
 
-        {/* Automated Guardrail Test Harness (Requirement 19 & 20) */}
+        {/* Automated Guardrail Test Harness */}
         <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '14px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <div style={{ fontWeight: 800, color: 'white', fontSize: '0.85rem' }}>
             Automated Guardrail Test Harness
@@ -487,12 +629,18 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine, select
           <button
             className="btn-secondary"
             onClick={handleRunAgentTests}
-            disabled={isTesting}
-            style={{ justifyContent: 'center', fontWeight: 700, padding: '10px' }}
+            disabled={isTesting || Boolean(rateLimitInfo && rateLimitInfo.remainingSeconds > 0)}
+            style={{
+              justifyContent: 'center',
+              fontWeight: 700,
+              padding: '10px',
+              opacity: isTesting || (rateLimitInfo && rateLimitInfo.remainingSeconds > 0) ? 0.5 : 1,
+              cursor: isTesting || (rateLimitInfo && rateLimitInfo.remainingSeconds > 0) ? 'not-allowed' : 'pointer',
+            }}
           >
             {isTesting ? (
               <>
-                <RefreshCw size={14} className="spin" color="var(--accent-amber)" /> Running Test Harness...
+                <RefreshCw size={14} className="spin" color="var(--accent-amber)" /> Running Sequential Test Harness...
               </>
             ) : (
               <>
@@ -510,7 +658,12 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine, select
               <div style={{ fontSize: '0.75rem', color: '#cbd5e1', lineHeight: '1.4' }}>
                 {testError}
               </div>
-              <button className="btn-secondary" onClick={handleRunAgentTests} disabled={isTesting} style={{ fontSize: '0.78rem', justifyContent: 'center', marginTop: '4px' }}>
+              <button
+                className="btn-secondary"
+                onClick={handleRunAgentTests}
+                disabled={isTesting || Boolean(rateLimitInfo && rateLimitInfo.remainingSeconds > 0)}
+                style={{ fontSize: '0.78rem', justifyContent: 'center', marginTop: '4px' }}
+              >
                 <RefreshCw size={12} /> Retry Test
               </button>
             </div>
@@ -531,22 +684,23 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({ projectId, spine, select
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '220px', overflowY: 'auto', paddingRight: '4px' }}>
                 {(testResults.tests || testResults.results || []).map((t: any, idx: number) => {
                   const isPassed = t.status === 'passed' || t.passed === true;
+                  const isRateLimit = t.status === 'rate_limited';
                   return (
                     <div
                       key={t.id || idx}
                       style={{
-                        background: isPassed ? 'rgba(16, 185, 129, 0.06)' : 'rgba(239, 68, 68, 0.08)',
+                        background: isPassed ? 'rgba(16, 185, 129, 0.06)' : isRateLimit ? 'rgba(245, 158, 11, 0.08)' : 'rgba(239, 68, 68, 0.08)',
                         padding: '8px 10px',
                         borderRadius: '6px',
-                        border: isPassed ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid rgba(239, 68, 68, 0.3)',
+                        border: isPassed ? '1px solid rgba(16, 185, 129, 0.25)' : isRateLimit ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid rgba(239, 68, 68, 0.3)',
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 700, marginBottom: '4px' }}>
-                        <span style={{ color: isPassed ? '#6ee7b7' : '#fca5a5', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          {isPassed ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
+                        <span style={{ color: isPassed ? '#6ee7b7' : isRateLimit ? '#f59e0b' : '#fca5a5', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          {isPassed ? <CheckCircle2 size={13} /> : isRateLimit ? <AlertTriangle size={13} /> : <XCircle size={13} />}
                           {t.name || `Scenario #${idx + 1}`}
                         </span>
-                        <span style={{ fontSize: '0.65rem', padding: '1px 5px', borderRadius: '4px', background: isPassed ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)', color: isPassed ? '#6ee7b7' : '#fca5a5' }}>
+                        <span style={{ fontSize: '0.65rem', padding: '1px 5px', borderRadius: '4px', background: isPassed ? 'rgba(16,185,129,0.2)' : isRateLimit ? 'rgba(245,158,11,0.2)' : 'rgba(239,68,68,0.2)', color: isPassed ? '#6ee7b7' : isRateLimit ? '#fcd34d' : '#fca5a5' }}>
                           {(t.status || (isPassed ? 'passed' : 'failed')).toUpperCase()}
                         </span>
                       </div>

@@ -8,12 +8,16 @@ const API_BASE =
 
 export class ApiError extends Error {
   statusCode: number;
+  code: string;
+  retryAfterSeconds?: number;
   details: any;
 
-  constructor(message: string, statusCode = 500, details: any = null) {
+  constructor(message: string, statusCode = 500, details: any = null, code = 'API_ERROR', retryAfterSeconds?: number) {
     super(message);
     this.name = 'ApiError';
     this.statusCode = statusCode;
+    this.code = code;
+    this.retryAfterSeconds = retryAfterSeconds;
     this.details = details;
   }
 }
@@ -57,8 +61,9 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
       const msg =
         json?.error?.message ||
         (typeof json?.error === 'string' ? json.error : `HTTP ${res.status} Error`);
-      const code = json?.error?.code || 'API_ERROR';
-      throw new ApiError(msg, res.status, { code, details: json?.error?.details });
+      const code = json?.error?.code || (res.status === 429 ? 'GEMINI_RATE_LIMITED' : 'API_ERROR');
+      const retryAfter = json?.error?.retryAfterSeconds || (res.status === 429 ? 45 : undefined);
+      throw new ApiError(msg, res.status, { code, details: json?.error?.details }, code, retryAfter);
     }
 
     return json.data !== undefined ? json.data : json;

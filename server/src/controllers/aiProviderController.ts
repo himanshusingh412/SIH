@@ -6,6 +6,7 @@ import { MockProvider } from '../ai/providers/mockProvider';
 import { getAIProvider } from '../ai/provider';
 import { sendSuccess, sendError } from '../utils/response';
 import { formatValidator } from '../engine/formatEngine/formatValidator';
+import { providerHealthTracker } from '../services/providerHealthService';
 
 const geminiInst = new GeminiProvider();
 const openAIInst = new OpenAIProvider();
@@ -13,12 +14,13 @@ const mockInst = new MockProvider();
 
 /**
  * GET /api/ai/providers
- * Returns public configuration and availability status of AI providers (NO SECRETS EXPOSED)
+ * Returns public configuration and availability status of AI providers using cached health state (NO EXTRA API QUOTA CONSUMED)
  */
 export const getProvidersInfo = async (_req: Request, res: Response): Promise<void> => {
   try {
-    const hasGeminiKey = Boolean(config.aiApiKey || config.geminiApiKey);
-    const hasOpenAIKey = Boolean(config.openaiApiKey);
+    const geminiHealth = providerHealthTracker.getHealth('gemini');
+    const openAIHealth = providerHealthTracker.getHealth('openai');
+    const mockHealth = providerHealthTracker.getHealth('mock');
 
     sendSuccess(res, {
       providers: {
@@ -26,19 +28,29 @@ export const getProvidersInfo = async (_req: Request, res: Response): Promise<vo
           id: 'gemini',
           name: 'Google Gemini',
           model: config.aiModel || 'gemini-3.1-flash-lite',
-          configured: hasGeminiKey,
+          configured: geminiHealth.configured,
+          status: geminiHealth.status,
+          message: geminiHealth.message,
+          retryAfterSeconds: geminiHealth.retryAfterSeconds,
+          remainingRetrySeconds: geminiHealth.remainingRetrySeconds,
         },
         openai: {
           id: 'openai',
           name: 'OpenAI',
           model: config.openaiModel || 'gpt-4o',
-          configured: hasOpenAIKey,
+          configured: openAIHealth.configured,
+          status: openAIHealth.status,
+          message: openAIHealth.message,
+          retryAfterSeconds: openAIHealth.retryAfterSeconds,
+          remainingRetrySeconds: openAIHealth.remainingRetrySeconds,
         },
         mock: {
           id: 'mock',
           name: 'Mock AI',
           model: 'Demo / Testing Only',
-          available: true,
+          configured: true,
+          status: 'connected',
+          message: 'Mock AI — Demo / Testing Only',
         },
       },
       defaultProvider: config.aiProvider || 'gemini',
@@ -50,7 +62,7 @@ export const getProvidersInfo = async (_req: Request, res: Response): Promise<vo
 
 /**
  * POST /api/ai/providers/test
- * Real connectivity check for requested AI provider
+ * Explicit connectivity test requested by user
  */
 export const testProviderConnection = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -70,13 +82,24 @@ export const testProviderConnection = async (req: Request, res: Response): Promi
           status: 'connected',
           model: result.model,
         });
+      } else if (result.status === 'rate_limited') {
+        res.status(429).json({
+          success: false,
+          provider: 'gemini',
+          status: 'rate_limited',
+          error: {
+            code: 'GEMINI_RATE_LIMITED',
+            message: 'Gemini is temporarily rate-limited.',
+            retryAfterSeconds: result.retryAfterSeconds || 45,
+          },
+        });
       } else {
         res.status(503).json({
           success: false,
           provider: 'gemini',
-          status: 'unavailable',
+          status: result.status || 'unavailable',
           error: {
-            code: 'PROVIDER_UNAVAILABLE',
+            code: result.status === 'not_configured' ? 'NOT_CONFIGURED' : 'PROVIDER_UNAVAILABLE',
             message: result.message || 'Google Gemini is currently unavailable.',
           },
         });
@@ -123,7 +146,7 @@ export const testProviderConnection = async (req: Request, res: Response): Promi
 
 /**
  * POST /api/ai/generate
- * Generate output deliverable with strict provider routing, Fact Lock preservation, and validation
+ * Generate output deliverable with strict provider routing, rate limit awareness, and validation
  */
 export const generateAIOutput = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -177,7 +200,6 @@ export const generateAIOutput = async (req: Request, res: Response): Promise<voi
       }
     }
 
-    // If no Content Spine exists yet, create fallback from prompt or default
     if (!spineData) {
       const summaryText = prompt || 'ContentSpine AI Single Source of Truth Summary';
       spineData = await mockInst.extractContentSpine(summaryText, 'PROMPT');
@@ -187,7 +209,6 @@ export const generateAIOutput = async (req: Request, res: Response): Promise<voi
     const aiInstance = getAIProvider(normProvider);
     const generated = await aiInstance.generateOutput(spineData, outputType, audience);
 
-    // Validate generated output through Fact Lock validator
     const lockedFacts = (spineData.factLocks || []).map((f: any) => ({
       key: f.key || f.factKey,
       value: f.value || f.factValue,
@@ -220,6 +241,17 @@ export const generateAIOutput = async (req: Request, res: Response): Promise<voi
       },
     });
   } catch (err: any) {
+    if (err.code === 'GEMINI_RATE_LIMITED' || err.status === 429) {
+      res.status(429).json({
+        success: false,
+        error: {
+          code: 'GEMINI_RATE_LIMITED',
+          message: 'Gemini is temporarily rate-limited.',
+          retryAfterSeconds: err.retryAfterSeconds || 45,
+        },
+      });
+      return;
+    }
     sendError(res, err.message || 'AI deliverable generation failed', 500, 'AI_GENERATION_FAILED');
   }
 };

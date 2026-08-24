@@ -19,61 +19,154 @@ export const Header: React.FC<HeaderProps> = ({
   setSelectedProvider,
 }) => {
   const [providerStatus, setProviderStatus] = useState<{
-    status: 'connected' | 'not_configured' | 'unavailable' | 'demo' | 'checking';
+    status: 'connected' | 'ready' | 'rate_limited' | 'not_configured' | 'unavailable' | 'demo' | 'checking';
     message: string;
     model?: string;
-  }>({ status: 'checking', message: 'Checking provider connectivity...' });
+    remainingSeconds?: number;
+  }>({ status: 'checking', message: 'Checking provider status...' });
 
   const [isTesting, setIsTesting] = useState<boolean>(false);
 
   useEffect(() => {
-    checkProviderStatus(selectedProvider);
+    fetchProviderInfo(selectedProvider);
   }, [selectedProvider]);
 
-  const checkProviderStatus = async (prov: string) => {
-    setIsTesting(true);
-    setProviderStatus({ status: 'checking', message: 'Testing connection...' });
+  // Live countdown timer for rate limit status
+  useEffect(() => {
+    if (providerStatus.status !== 'rate_limited' || !providerStatus.remainingSeconds) return;
 
+    const timer = setInterval(() => {
+      setProviderStatus((prev) => {
+        if (prev.status !== 'rate_limited' || !prev.remainingSeconds) return prev;
+        const next = prev.remainingSeconds - 1;
+        if (next <= 0) {
+          return {
+            ...prev,
+            status: 'ready',
+            message: `${selectedProvider === 'gemini' ? 'Gemini' : 'OpenAI'} — Ready`,
+            remainingSeconds: undefined,
+          };
+        }
+        return {
+          ...prev,
+          remainingSeconds: next,
+          message: `${selectedProvider === 'gemini' ? 'Gemini' : 'OpenAI'} — Rate Limited (Retry in ${next}s)`,
+        };
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [providerStatus.status, providerStatus.remainingSeconds, selectedProvider]);
+
+  /**
+   * Fetches provider status from GET /api/ai/providers (NO Gemini API generation quota consumed)
+   */
+  const fetchProviderInfo = async (prov: string) => {
     if (prov === 'mock') {
       setProviderStatus({
         status: 'demo',
         message: 'Mock AI — Demo / Testing Only',
         model: 'Demo Mode',
       });
-      setIsTesting(false);
       return;
     }
 
     try {
-      const res = await apiClient.testAIProvider(prov);
-      if (res && res.status === 'connected') {
-        const name = prov === 'gemini' ? 'Gemini' : 'OpenAI';
+      const res = await apiClient.getAIProviders();
+      const provInfo = (res.providers?.[prov] as any);
+      const name = prov === 'gemini' ? 'Gemini' : 'OpenAI';
+
+      if (!provInfo || provInfo.configured === false) {
+        setProviderStatus({
+          status: 'not_configured',
+          message: `${name} — Not Configured`,
+        });
+        return;
+      }
+
+      if (provInfo.status === 'rate_limited') {
+        const remaining = provInfo.remainingRetrySeconds || provInfo.retryAfterSeconds || 45;
+        setProviderStatus({
+          status: 'rate_limited',
+          message: `🟡 ${name} — Rate Limited (Retry in ${remaining}s)`,
+          remainingSeconds: remaining,
+          model: provInfo.model,
+        });
+        return;
+      }
+
+      if (provInfo.status === 'connected') {
         setProviderStatus({
           status: 'connected',
-          message: `${name} — Connected`,
+          message: `🟢 ${name} — Connected`,
+          model: provInfo.model,
+        });
+        return;
+      }
+
+      setProviderStatus({
+        status: 'ready',
+        message: `🟢 ${name} — Ready`,
+        model: provInfo.model,
+      });
+    } catch {
+      const name = prov === 'gemini' ? 'Gemini' : 'OpenAI';
+      setProviderStatus({
+        status: 'ready',
+        message: `🟢 ${name} — Ready`,
+      });
+    }
+  };
+
+  /**
+   * Explicit provider test requested manually by user clicking refresh icon
+   */
+  const handleManualTest = async () => {
+    if (selectedProvider === 'mock') return;
+
+    setIsTesting(true);
+    setProviderStatus({ status: 'checking', message: 'Testing connection...' });
+
+    try {
+      const res = await apiClient.testAIProvider(selectedProvider);
+      const name = selectedProvider === 'gemini' ? 'Gemini' : 'OpenAI';
+
+      if (res && res.status === 'connected') {
+        setProviderStatus({
+          status: 'connected',
+          message: `🟢 ${name} — Connected`,
           model: res.model,
         });
       } else {
-        const name = prov === 'gemini' ? 'Gemini' : 'OpenAI';
         setProviderStatus({
           status: 'unavailable',
-          message: `${name} — Unavailable`,
+          message: `🔴 ${name} — Unavailable`,
         });
       }
     } catch (err: any) {
-      const name = prov === 'gemini' ? 'Gemini' : 'OpenAI';
-      const isConfigError = err?.message?.includes('not configured') || err?.message?.includes('missing');
-      setProviderStatus({
-        status: isConfigError ? 'not_configured' : 'unavailable',
-        message: isConfigError ? `${name} — Not Configured` : `${name} — Unavailable`,
-      });
+      const name = selectedProvider === 'gemini' ? 'Gemini' : 'OpenAI';
+      const isRateLimit = err?.code === 'GEMINI_RATE_LIMITED' || err?.statusCode === 429;
+      const retryAfter = err?.retryAfterSeconds || 45;
+
+      if (isRateLimit) {
+        setProviderStatus({
+          status: 'rate_limited',
+          message: `🟡 ${name} — Rate Limited (Retry in ${retryAfter}s)`,
+          remainingSeconds: retryAfter,
+        });
+      } else {
+        setProviderStatus({
+          status: err?.message?.includes('configured') ? 'not_configured' : 'unavailable',
+          message: err?.message?.includes('configured') ? `🟠 ${name} — Not Configured` : `🔴 ${name} — Unavailable`,
+        });
+      }
     } finally {
       setIsTesting(false);
     }
   };
 
   const getStatusBadge = () => {
-    if (providerStatus.status === 'checking') {
+    if (providerStatus.status === 'checking' || isTesting) {
       return (
         <span
           style={{
@@ -90,7 +183,7 @@ export const Header: React.FC<HeaderProps> = ({
       );
     }
 
-    if (providerStatus.status === 'connected') {
+    if (providerStatus.status === 'connected' || providerStatus.status === 'ready') {
       return (
         <span
           style={{
@@ -108,6 +201,36 @@ export const Header: React.FC<HeaderProps> = ({
         >
           <CheckCircle2 size={13} color="#10b981" />
           <span>{providerStatus.message}</span>
+        </span>
+      );
+    }
+
+    if (providerStatus.status === 'rate_limited') {
+      return (
+        <span
+          style={{
+            fontSize: 'var(--font-xs)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '5px',
+            color: '#f59e0b',
+            fontWeight: 700,
+            background: 'rgba(245, 158, 11, 0.14)',
+            padding: '4px 8px',
+            borderRadius: '6px',
+            border: '1px solid rgba(245, 158, 11, 0.35)',
+          }}
+        >
+          <AlertTriangle size={13} color="#f59e0b" />
+          <span>🟡 Gemini — Rate Limited {providerStatus.remainingSeconds ? `(${providerStatus.remainingSeconds}s)` : ''}</span>
+          <button
+            onClick={handleManualTest}
+            title="Retry Connection Test"
+            disabled={Boolean(providerStatus.remainingSeconds && providerStatus.remainingSeconds > 0)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginLeft: '4px', opacity: providerStatus.remainingSeconds ? 0.5 : 1 }}
+          >
+            <RefreshCw size={11} color="#f59e0b" />
+          </button>
         </span>
       );
     }
@@ -130,13 +253,6 @@ export const Header: React.FC<HeaderProps> = ({
         >
           <AlertTriangle size={13} color="#f59e0b" />
           <span>{providerStatus.message}</span>
-          <button
-            onClick={() => checkProviderStatus(selectedProvider)}
-            title="Retry Connection Test"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginLeft: '4px' }}
-          >
-            <RefreshCw size={11} color="#f59e0b" />
-          </button>
         </span>
       );
     }
@@ -160,7 +276,7 @@ export const Header: React.FC<HeaderProps> = ({
           <XCircle size={13} color="#ef4444" />
           <span>{providerStatus.message}</span>
           <button
-            onClick={() => checkProviderStatus(selectedProvider)}
+            onClick={handleManualTest}
             title="Retry Connection Test"
             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginLeft: '4px' }}
           >

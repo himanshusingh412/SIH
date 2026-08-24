@@ -26,12 +26,27 @@ export const knowledgeAgentHandler = async (req: Request, res: Response): Promis
     const result = await agentService.askKnowledgeAgent(projectId, message, conversationId, provider);
 
     if (result.success === false) {
+      if (result.error?.code === 'GEMINI_RATE_LIMITED') {
+        res.status(429).json(result);
+        return;
+      }
       res.status(400).json(result);
       return;
     }
 
     sendSuccess(res, result.data);
   } catch (error: any) {
+    if (error.code === 'GEMINI_RATE_LIMITED' || error.status === 429) {
+      res.status(429).json({
+        success: false,
+        error: {
+          code: 'GEMINI_RATE_LIMITED',
+          message: 'Gemini is temporarily rate-limited.',
+          retryAfterSeconds: error.retryAfterSeconds || 45,
+        },
+      });
+      return;
+    }
     console.error('❌ Knowledge Agent Query Error:', error);
     res.status(500).json({
       success: false,
@@ -53,6 +68,17 @@ export const testAgentHandler = async (req: Request, res: Response): Promise<voi
     const result = await agentService.runAgentTest(agentId, testCases, projectId, provider);
     sendSuccess(res, result);
   } catch (error: any) {
+    if (error.code === 'GEMINI_RATE_LIMITED' || error.status === 429) {
+      res.status(429).json({
+        success: false,
+        error: {
+          code: 'GEMINI_RATE_LIMITED',
+          message: 'Gemini is temporarily rate-limited.',
+          retryAfterSeconds: error.retryAfterSeconds || 45,
+        },
+      });
+      return;
+    }
     console.error('❌ Agent Test Handler Failure:', error);
     res.status(500).json({
       success: false,
