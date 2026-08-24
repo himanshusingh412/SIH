@@ -318,4 +318,91 @@ export const apiClient = {
     request<{ message: string }>(`/conversations/${id}`, {
       method: 'DELETE',
     }),
+
+  // Resume Intelligence & ATS Studio Endpoints
+  createOrParseResume: (rawText: string, title?: string, projectId?: string, resumeId?: string) =>
+    request<{ resumeId: string; resume: any; candidateSpine: any }>('/resume/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rawText, title, projectId, resumeId }),
+    }),
+
+  saveResume: (id: string, candidateSpine: any, title?: string, targetRole?: string) =>
+    request<{ resume: any; message: string }>('/resume/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, candidateSpine, title, targetRole }),
+    }),
+
+  getResume: (id: string) => request<{ resume: any; candidateSpine: any }>(`/resume/${id}`),
+
+  parseJobDescription: (rawText: string, title?: string, company?: string) =>
+    request<{ jobId: string; jobSpine: any; job: any }>('/job/parse', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rawText, title, company }),
+    }),
+
+  runATSScan: (options: { resumeId?: string; jobId?: string; resumeText?: string; jobText?: string }) =>
+    request<{ report: any; candidate: any; job: any; scanId?: string }>('/resume/ats-scan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(options),
+    }),
+
+  optimizeResume: (options: { resumeId?: string; jobId?: string; resumeText?: string; jobText?: string }) =>
+    request<{ optimizedPackage: any }>('/resume/optimize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(options),
+    }),
+
+  getResumeVersions: (resumeId: string) =>
+    request<{ versions: any[] }>(`/resume/${encodeURIComponent(resumeId)}/versions`),
+
+  createResumeVersion: (
+    resumeId: string,
+    data: {
+      versionName?: string;
+      targetJobTitle?: string;
+      targetCompany?: string;
+      atsScore?: number;
+      optimizedContent?: any;
+      changesSummary?: any;
+    }
+  ) =>
+    request<{ version: any }>(`/resume/${encodeURIComponent(resumeId)}/versions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }),
+
+  restoreResumeVersion: (resumeId: string, versionId: string) =>
+    request<{ version: any; candidateSpine: any }>(`/resume/${encodeURIComponent(resumeId)}/versions/restore`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ versionId }),
+    }),
+
+  deleteResumeVersion: (resumeId: string, vId: string) =>
+    request<{ message: string }>(`/resume/${encodeURIComponent(resumeId)}/versions/${encodeURIComponent(vId)}`, {
+      method: 'DELETE',
+    }),
+
+  generateCoverLetter: (options: { resumeId?: string; jobId?: string; resumeText?: string; jobText?: string }) =>
+    request<{ coverLetter: string }>('/resume/cover-letter', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(options),
+    }),
+
+  generateLinkedInProfile: (options: { resumeId?: string; resumeText?: string }) =>
+    request<{ linkedInProfile: any }>('/resume/linkedin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(options),
+    }),
+
+  getResumeAnalytics: (resumeId: string) =>
+    request<{ analytics: any }>(`/resume/${encodeURIComponent(resumeId)}/analytics`),
 };
