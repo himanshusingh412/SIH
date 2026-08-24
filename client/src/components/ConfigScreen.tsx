@@ -113,9 +113,11 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ onGenerate, isLoadin
           <div style={{ background: 'rgba(0, 0, 0, 0.2)', padding: '16px', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
               <Volume2 size={16} color="#10b981" />
-              <label style={{ fontSize: '0.85rem', fontWeight: 700 }}>Tone</label>
+              <label htmlFor="tone-select" style={{ fontSize: '0.85rem', fontWeight: 700 }}>Tone</label>
             </div>
             <select
+              id="tone-select"
+              aria-label="Select Content Tone"
               value={tone}
               onChange={(e) => setTone(e.target.value)}
               style={{
@@ -140,9 +142,11 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ onGenerate, isLoadin
           <div style={{ background: 'rgba(0, 0, 0, 0.2)', padding: '16px', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
               <Sliders size={16} color="#f59e0b" />
-              <label style={{ fontSize: '0.85rem', fontWeight: 700 }}>Detail Depth</label>
+              <label htmlFor="detail-select" style={{ fontSize: '0.85rem', fontWeight: 700 }}>Detail Depth</label>
             </div>
             <select
+              id="detail-select"
+              aria-label="Select Detail Depth"
               value={detail}
               onChange={(e) => setDetail(e.target.value)}
               style={{
@@ -167,9 +171,11 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ onGenerate, isLoadin
           <div style={{ background: 'rgba(0, 0, 0, 0.2)', padding: '16px', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
               <Target size={16} color="#a5b4fc" />
-              <label style={{ fontSize: '0.85rem', fontWeight: 700 }}>Communication Objective</label>
+              <label htmlFor="objective-select" style={{ fontSize: '0.85rem', fontWeight: 700 }}>Communication Objective</label>
             </div>
             <select
+              id="objective-select"
+              aria-label="Select Communication Objective"
               value={objective}
               onChange={(e) => setObjective(e.target.value)}
               style={{

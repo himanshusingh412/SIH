@@ -19,13 +19,15 @@ export const SettingsPage: React.FC = () => {
 
       <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
         <div>
-          <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'white', display: 'block', marginBottom: '6px' }}>
+          <label htmlFor="ai-provider-select" style={{ fontSize: '0.8rem', fontWeight: 700, color: 'white', display: 'block', marginBottom: '6px' }}>
             Primary Text AI Provider
           </label>
           <select
+            id="ai-provider-select"
+            aria-label="Primary Text AI Provider"
             value={aiProvider}
             onChange={(e) => setAiProvider(e.target.value)}
-            style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.4)', color: 'white', border: '1px solid var(--border-color)', borderRadius: '6px' }}
+            style={{ width: '100%', padding: '10px', background: '#121826', color: 'white', border: '1px solid var(--border-color)', borderRadius: '6px' }}
           >
             <option value="gemini">Google Gemini AI (gemini-3.1-flash-lite)</option>
             <option value="openai">OpenAI GPT-4o / GPT-3.5</option>
@@ -35,13 +37,15 @@ export const SettingsPage: React.FC = () => {
         </div>
 
         <div>
-          <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'white', display: 'block', marginBottom: '6px' }}>
+          <label htmlFor="audio-provider-select" style={{ fontSize: '0.8rem', fontWeight: 700, color: 'white', display: 'block', marginBottom: '6px' }}>
             Voice & Audio Synthesizer Provider
           </label>
           <select
+            id="audio-provider-select"
+            aria-label="Voice & Audio Synthesizer Provider"
             value={audioProvider}
             onChange={(e) => setAudioProvider(e.target.value)}
-            style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.4)', color: 'white', border: '1px solid var(--border-color)', borderRadius: '6px' }}
+            style={{ width: '100%', padding: '10px', background: '#121826', color: 'white', border: '1px solid var(--border-color)', borderRadius: '6px' }}
           >
             <option value="elevenlabs">ElevenLabs Multilingual v2 API</option>
             <option value="mock">Offline Audio Synthesizer (Demo Mode)</option>
@@ -49,14 +53,16 @@ export const SettingsPage: React.FC = () => {
         </div>
 
         <div>
-          <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'white', display: 'block', marginBottom: '6px' }}>
+          <label htmlFor="model-name-input" style={{ fontSize: '0.8rem', fontWeight: 700, color: 'white', display: 'block', marginBottom: '6px' }}>
             Target AI Model Name
           </label>
           <input
+            id="model-name-input"
+            aria-label="Target AI Model Name"
             type="text"
             value={model}
             onChange={(e) => setModel(e.target.value)}
-            style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.4)', color: 'white', border: '1px solid var(--border-color)', borderRadius: '6px' }}
+            style={{ width: '100%', padding: '10px', background: '#121826', color: 'white', border: '1px solid var(--border-color)', borderRadius: '6px' }}
           />
         </div>
 
