@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   FileText,
   ShieldAlert,
-  Presentation,
   BarChart2,
   Video,
   Copy,
@@ -13,22 +12,22 @@ import {
   Download,
   AlertTriangle,
   Zap,
+  Lock,
 } from 'lucide-react';
 import type { ContentSpineData, GeneratedOutput, OutputType, ValidationReportData } from '../types';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { cleanPdfText } from '../utils/pdfSanitizer';
+import { BrandLogo, type BrandName } from './BrandLogo';
 
-const LinkedinIcon = ({ size = 16 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-    <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.46 10.9v8.37H9.25V10.9H6.46M7.86 6.75a1.45 1.45 0 1 0 0 2.9 1.45 1.45 0 0 0 0-2.9z"/>
-  </svg>
-);
-
-const TwitterIcon = ({ size = 16 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
-  </svg>
-);
+interface FormatItem {
+  type: OutputType;
+  label: string;
+  brandName?: BrandName;
+  lucideIcon?: React.ElementType;
+  brandColor: string;
+  bgLight: string;
+  profile: string;
+}
 
 interface ReviewWorkspace3PaneProps {
   projectTitle?: string;
@@ -81,14 +80,63 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
     snippet: 'Ingested source document verifies milestone target date and system consistency metrics.',
   });
 
-  const formats: Array<{ type: OutputType; label: string; icon: any; profile: string }> = [
-    { type: 'EXECUTIVE_SUMMARY', label: 'Executive Summary', icon: FileText, profile: 'EXECUTIVE' },
-    { type: 'LINKEDIN_POST', label: 'LinkedIn Post', icon: LinkedinIcon, profile: 'EXECUTIVE' },
-    { type: 'X_THREAD', label: 'X Thread', icon: TwitterIcon, profile: 'EXECUTIVE' },
-    { type: 'ADVISORY', label: 'Advisory Notice', icon: ShieldAlert, profile: 'EXECUTIVE' },
-    { type: 'PRESENTATION', label: 'Presentation Deck', icon: Presentation, profile: 'EXECUTIVE' },
-    { type: 'INFOGRAPHIC', label: 'Infographic Layout', icon: BarChart2, profile: 'EXECUTIVE' },
-    { type: 'VIDEO_PACKAGE', label: 'Video Package', icon: Video, profile: 'EXECUTIVE' },
+  const formats: FormatItem[] = [
+    {
+      type: 'EXECUTIVE_SUMMARY',
+      label: 'Executive Summary',
+      lucideIcon: FileText,
+      brandColor: '#6E1B38',
+      bgLight: '#FFF1F5',
+      profile: 'EXECUTIVE',
+    },
+    {
+      type: 'LINKEDIN_POST',
+      label: 'LinkedIn Post',
+      brandName: 'linkedin',
+      brandColor: '#0A66C2',
+      bgLight: '#EFF6FF',
+      profile: 'EXECUTIVE',
+    },
+    {
+      type: 'X_THREAD',
+      label: 'X Thread',
+      brandName: 'x',
+      brandColor: '#000000',
+      bgLight: '#F4F4F5',
+      profile: 'EXECUTIVE',
+    },
+    {
+      type: 'ADVISORY',
+      label: 'Advisory Notice',
+      lucideIcon: ShieldAlert,
+      brandColor: '#B42318',
+      bgLight: '#FEF2F2',
+      profile: 'EXECUTIVE',
+    },
+    {
+      type: 'PRESENTATION',
+      label: 'Presentation Deck',
+      brandName: 'powerpoint',
+      brandColor: '#D24726',
+      bgLight: '#FFF7ED',
+      profile: 'EXECUTIVE',
+    },
+    {
+      type: 'INFOGRAPHIC',
+      label: 'Infographic Layout',
+      lucideIcon: BarChart2,
+      brandColor: '#7C3AED',
+      bgLight: '#F5F3FF',
+      profile: 'EXECUTIVE',
+    },
+    {
+      type: 'VIDEO_PACKAGE',
+      label: 'Video Package',
+      lucideIcon: Video,
+      brandColor: '#E11D48',
+      bgLight: '#FFF1F2',
+      profile: 'EXECUTIVE',
+    },
   ];
 
   const currentOutput = outputs.find((o) => o.outputType === selectedType) || outputs[0];
@@ -454,7 +502,6 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
           </div>
 
           {formats.map((item) => {
-            const Icon = item.icon;
             const isSelected = selectedType === item.type;
             const outputObj = outputs.find((o) => o.outputType === item.type);
             const isVerified = outputObj?.isConsistent ?? true;
@@ -467,35 +514,101 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  padding: '10px 12px',
+                  padding: '8px 10px',
                   borderRadius: 'var(--radius-md)',
-                  background: isSelected ? 'var(--burgundy-700)' : 'var(--bg-secondary)',
-                  border: isSelected ? '1px solid var(--burgundy-800)' : '1px solid var(--border-color)',
-                  color: isSelected ? '#FFF5F8' : 'var(--text-primary)',
+                  background: isSelected ? 'var(--burgundy-700)' : '#FFF8FA',
+                  border: isSelected ? '1px solid var(--burgundy-800)' : '1px solid #E9CCD7',
+                  color: isSelected ? '#FFF5F8' : '#3B0A1E',
                   cursor: 'pointer',
                   textAlign: 'left',
                   transition: 'all var(--transition-fast)',
                   fontFamily: 'var(--font-sans)',
+                  gap: '8px',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                  <Icon size={16} color={isSelected ? '#F6C2D3' : 'var(--burgundy-700)'} aria-hidden="true" />
-                  <span style={{ fontSize: 'var(--font-sm)', fontWeight: isSelected ? 700 : 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
+                  {/* Distinct Icon Container */}
+                  <div
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: isSelected ? 'rgba(255, 255, 255, 0.18)' : item.bgLight,
+                      flexShrink: 0,
+                      transition: 'background var(--transition-fast)',
+                    }}
+                  >
+                    {item.brandName ? (
+                      <BrandLogo
+                        name={item.brandName}
+                        size={17}
+                        color={isSelected ? '#FFFFFF' : item.brandName === 'x' ? '#000000' : undefined}
+                      />
+                    ) : item.lucideIcon ? (
+                      <item.lucideIcon
+                        size={16}
+                        color={isSelected ? '#F6C2D3' : item.brandColor}
+                      />
+                    ) : null}
+                  </div>
+
+                  {/* Label */}
+                  <span
+                    style={{
+                      fontSize: 'var(--font-sm)',
+                      fontWeight: isSelected ? 700 : 600,
+                      color: isSelected ? '#FFF5F8' : '#3B0A1E',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
                     {item.label}
                   </span>
                 </div>
+
+                {/* SVG Lock / Alert Badge */}
                 <span
                   style={{
                     fontSize: '0.68rem',
                     fontWeight: 700,
-                    padding: '2px 6px',
+                    padding: '3px 7px',
                     borderRadius: 'var(--radius-pill)',
-                    background: isSelected ? 'rgba(255,255,255,0.2)' : isVerified ? 'var(--color-success-bg)' : 'var(--color-warning-bg)',
-                    color: isSelected ? '#FFF5F8' : isVerified ? 'var(--color-success)' : 'var(--color-warning)',
-                    border: isSelected ? 'none' : isVerified ? '1px solid var(--color-success-border)' : '1px solid var(--color-warning-border)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    background: isSelected
+                      ? 'rgba(255,255,255,0.2)'
+                      : isVerified
+                      ? '#F0FDF4'
+                      : '#FEF2F2',
+                    color: isSelected
+                      ? '#FFF5F8'
+                      : isVerified
+                      ? '#15803D'
+                      : '#B42318',
+                    border: isSelected
+                      ? '1px solid rgba(255,255,255,0.3)'
+                      : isVerified
+                      ? '1px solid #BBF7D0'
+                      : '1px solid #FECDCA',
+                    flexShrink: 0,
                   }}
                 >
-                  {isVerified ? '🔒 Locked' : '⚠️ Review'}
+                  {isVerified ? (
+                    <>
+                      <Lock size={11} color={isSelected ? '#FFF5F8' : '#15803D'} aria-hidden="true" />
+                      Locked
+                    </>
+                  ) : (
+                    <>
+                      <AlertTriangle size={11} color={isSelected ? '#FFF5F8' : '#B42318'} aria-hidden="true" />
+                      Review
+                    </>
+                  )}
                 </span>
               </button>
             );
