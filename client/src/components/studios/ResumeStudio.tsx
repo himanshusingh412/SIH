@@ -806,68 +806,66 @@ Requirements:
           </div>
 
           {/* Right Column: Real-Time Formatted Preview */}
-          <div>
-            <div className="glass-panel" style={{ padding: '32px', minHeight: '800px', background: '#ffffff', color: '#111827', borderRadius: '8px', fontFamily: 'Georgia, serif', border: '1px solid #e5e7eb' }}>
-              {/* Header */}
-              <div style={{ borderBottom: '2px solid #1e3a8a', paddingBottom: '12px', marginBottom: '16px' }}>
-                <h2 style={{ fontSize: '1.8rem', fontWeight: 800, color: '#1e3a8a', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '4px' }}>
-                  {spine.personal.name}
-                </h2>
-                <div style={{ fontSize: '0.82rem', color: '#4b5563' }}>
-                  {spine.personal.email} • {spine.personal.phone} • {spine.personal.location}
-                  {spine.personal.linkedIn && ` • ${spine.personal.linkedIn}`}
+          <div className="glass-panel" style={{ padding: '32px', minHeight: '800px', background: '#ffffff', color: '#111827', borderRadius: '8px', fontFamily: 'Georgia, serif', border: '1px solid #e5e7eb' }}>
+            {/* Header */}
+            <div style={{ borderBottom: '2px solid #1e3a8a', paddingBottom: '12px', marginBottom: '16px' }}>
+              <h2 style={{ fontSize: '1.8rem', fontWeight: 800, color: '#1e3a8a', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '4px' }}>
+                {spine.personal.name}
+              </h2>
+              <div style={{ fontSize: '0.82rem', color: '#4b5563' }}>
+                {spine.personal.email} • {spine.personal.phone} • {spine.personal.location}
+                {spine.personal.linkedIn && ` • ${spine.personal.linkedIn}`}
+              </div>
+            </div>
+
+            {/* Summary */}
+            <div style={{ marginBottom: '16px' }}>
+              <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#1e3a8a', textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: '4px', marginBottom: '6px' }}>
+                Professional Summary
+              </h4>
+              <p style={{ fontSize: '0.85rem', lineHeight: '1.5', color: '#1f2937' }}>{spine.summary}</p>
+            </div>
+
+            {/* Skills */}
+            <div style={{ marginBottom: '16px' }}>
+              <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#1e3a8a', textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: '4px', marginBottom: '6px' }}>
+                Technical Competencies
+              </h4>
+              <p style={{ fontSize: '0.85rem', color: '#1f2937' }}>
+                {spine.skills.map((s) => s.name).join(' • ')}
+              </p>
+            </div>
+
+            {/* Experience */}
+            <div style={{ marginBottom: '16px' }}>
+              <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#1e3a8a', textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: '4px', marginBottom: '10px' }}>
+                Work Experience
+              </h4>
+              {spine.experiences.map((exp, i) => (
+                <div key={i} style={{ marginBottom: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: '0.9rem', color: '#111827' }}>
+                    <span>{exp.role} — {exp.company}</span>
+                    <span style={{ fontSize: '0.8rem', color: '#6b7280', fontWeight: 400 }}>{exp.startDate} – {exp.endDate}</span>
+                  </div>
+                  <ul style={{ paddingLeft: '18px', marginTop: '4px', fontSize: '0.83rem', color: '#374151', lineHeight: '1.4' }}>
+                    {exp.responsibilities.map((resp, bIdx) => (
+                      <li key={bIdx}>{resp}</li>
+                    ))}
+                  </ul>
                 </div>
-              </div>
+              ))}
+            </div>
 
-              {/* Summary */}
-              <div style={{ marginBottom: '16px' }}>
-                <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#1e3a8a', textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: '4px', marginBottom: '6px' }}>
-                  Professional Summary
-                </h4>
-                <p style={{ fontSize: '0.85rem', lineHeight: '1.5', color: '#1f2937' }}>{spine.summary}</p>
-              </div>
-
-              {/* Skills */}
-              <div style={{ marginBottom: '16px' }}>
-                <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#1e3a8a', textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: '4px', marginBottom: '6px' }}>
-                  Technical Competencies
-                </h4>
-                <p style={{ fontSize: '0.85rem', color: '#1f2937' }}>
-                  {spine.skills.map((s) => s.name).join(' • ')}
-                </p>
-              </div>
-
-              {/* Experience */}
-              <div style={{ marginBottom: '16px' }}>
-                <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#1e3a8a', textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: '4px', marginBottom: '10px' }}>
-                  Work Experience
-                </h4>
-                {spine.experiences.map((exp, i) => (
-                  <div key={i} style={{ marginBottom: '12px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: '0.9rem', color: '#111827' }}>
-                      <span>{exp.role} — {exp.company}</span>
-                      <span style={{ fontSize: '0.8rem', color: '#6b7280', fontWeight: 400 }}>{exp.startDate} – {exp.endDate}</span>
-                    </div>
-                    <ul style={{ paddingLeft: '18px', marginTop: '4px', fontSize: '0.83rem', color: '#374151', lineHeight: '1.4' }}>
-                      {exp.responsibilities.map((resp, bIdx) => (
-                        <li key={bIdx}>{resp}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </div>
-
-              {/* Education */}
-              <div>
-                <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#1e3a8a', textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: '4px', marginBottom: '6px' }}>
-                  Education
-                </h4>
-                {spine.education.map((edu, i) => (
-                  <div key={i} style={{ fontSize: '0.85rem', color: '#1f2937' }}>
-                    <strong>{edu.degree} in {edu.field}</strong> — {edu.institution} ({edu.endDate})
-                  </div>
-                ))}
-              </div>
+            {/* Education */}
+            <div>
+              <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#1e3a8a', textTransform: 'uppercase', borderBottom: '1px solid #e5e7eb', paddingBottom: '4px', marginBottom: '6px' }}>
+                Education
+              </h4>
+              {spine.education.map((edu, i) => (
+                <div key={i} style={{ fontSize: '0.85rem', color: '#1f2937' }}>
+                  <strong>{edu.degree} in {edu.field}</strong> — {edu.institution} ({edu.endDate})
+                </div>
+              ))}
             </div>
           </div>
         </div>
