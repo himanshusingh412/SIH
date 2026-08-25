@@ -222,13 +222,13 @@ Requirements:
 
     // Validation 1: File Format
     if (!['pdf', 'docx', 'doc', 'txt'].includes(ext)) {
-      setUploadError("The selected file isn't supported. Upload PDF, DOCX or TXT.");
+      setUploadError("This file type isn't supported. Please upload a PDF, DOCX, or TXT document.");
       return;
     }
 
     // Validation 2: File Size (20MB)
     if (file.size > 20 * 1024 * 1024) {
-      setUploadError("This resume exceeds the maximum allowed file size (20MB).");
+      setUploadError("This file exceeds the maximum allowed file size of 20MB.");
       return;
     }
 
@@ -236,21 +236,31 @@ Requirements:
     setUploadStep('UPLOADING');
     setUploadProgress('Uploading resume to server...');
 
-    try {
-      setTimeout(() => setUploadProgress('Extracting text & section structure...'), 500);
-      setTimeout(() => setUploadProgress('Detecting candidate facts & skills...'), 1000);
-      setTimeout(() => setUploadProgress('Building candidate content spine & saving to Neon...'), 1500);
+    const timer1 = setTimeout(() => setUploadProgress('Extracting text & layout structure...'), 500);
+    const timer2 = setTimeout(() => setUploadProgress('Analyzing candidate experience, skills & metrics via AI...'), 1200);
+    const timer3 = setTimeout(() => setUploadProgress('Building candidate profile & persisting to Neon...'), 2400);
 
+    try {
       const result = await apiClient.importExistingResume(file);
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      clearTimeout(timer3);
+
       if (result && result.candidateSpine) {
         setImportData(result);
+        // Automatically populate Resume Studio form state with real candidate data
+        setSpine(result.candidateSpine);
+        if (result.resumeId) setResumeId(result.resumeId);
         setUploadStep('REVIEW');
       } else {
-        throw new Error("We couldn't read text from this file. Try another PDF, DOCX or TXT.");
+        throw new Error(result?.message || "Resume analysis temporarily failed. Please retry.");
       }
     } catch (err: any) {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      clearTimeout(timer3);
       setUploadStep('SELECT');
-      setUploadError(err.message || "We couldn't process this file. Try another PDF or DOCX.");
+      setUploadError(err.message || "Resume analysis temporarily failed. Please retry.");
     }
   };
 
@@ -262,7 +272,7 @@ Requirements:
     setUploadStep('SELECT');
     setSelectedFile(null);
     setActiveTab('builder');
-    triggerToast('✓ Resume imported successfully. Your resume is now editable in Resume Studio.');
+    triggerToast('✓ Resume imported successfully. Your resume profile is now live in Resume Studio.');
   };
 
   // Load Initial Resume from Neon PostgreSQL

@@ -339,6 +339,8 @@ export const apiClient = {
       };
       filename: string;
       fileSize: number;
+      message?: string;
+      status?: string;
     }>('/resume/import', {
       method: 'POST',
       body: formData,

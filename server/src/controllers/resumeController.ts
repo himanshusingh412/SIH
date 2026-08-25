@@ -13,87 +13,28 @@ const getParam = (param: string | string[] | undefined): string => {
   return param || '';
 };
 
+import { resumeExtractionService } from '../engine/resumeEngine/resumeExtractionService';
+
 /**
- * POST /api/resume/import
- * Accept uploaded resume file (PDF, DOCX, TXT), extract text, semantically parse structure, and persist to Neon
+ * POST /api/resume/import (and /api/resume/upload)
+ * Accept uploaded resume file (PDF, DOCX, TXT), process through layered extraction, and persist to Neon
  */
 export async function importExistingResume(req: Request, res: Response) {
   try {
     const file = req.file;
     if (!file) {
-      return sendError(res, 'The selected file is missing or invalid. Upload PDF, DOCX or TXT.', 400);
+      return sendError(res, 'The selected file is missing or invalid. Please upload a PDF, DOCX, or TXT document.', 400);
     }
 
     const filename = file.originalname || 'uploaded_resume.pdf';
-    const ext = filename.split('.').pop()?.toLowerCase() || '';
+    const mimeType = file.mimetype || 'application/pdf';
 
-    if (!['pdf', 'docx', 'doc', 'txt'].includes(ext)) {
-      return sendError(res, "The selected file isn't supported. Upload PDF, DOCX or TXT.", 400);
-    }
-
-    let extractedText = '';
-
-    if (ext === 'pdf') {
-      try {
-        const parsed = await pdfParse(file.buffer);
-        extractedText = parsed.text || '';
-      } catch (e: any) {
-        return sendError(res, "We couldn't read this PDF file. Try another PDF or DOCX.", 400);
-      }
-    } else if (ext === 'docx' || ext === 'doc') {
-      const raw = file.buffer.toString('utf-8');
-      extractedText = raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-      if (!extractedText || extractedText.length < 10) {
-        extractedText = file.buffer.toString('ascii').replace(/[^\x20-\x7E\n]/g, ' ');
-      }
-    } else {
-      extractedText = file.buffer.toString('utf-8');
-    }
-
-    const cleanText = extractedText.replace(/\s+/g, ' ').trim();
-    if (!cleanText || cleanText.length < 15) {
-      return sendError(res, "We couldn't read text from this file. Try another PDF, DOCX or TXT.", 400);
-    }
-
-    // Parse into candidate spine
-    let candidateSpine = candidateSpineParser.parseCandidateSpine(extractedText);
-
-    // AI Refinement via Gemini if key is set
-    if (process.env.AI_API_KEY) {
-      try {
-        const { GoogleGenerativeAI } = await import('@google/generative-ai');
-        const genAI = new GoogleGenerativeAI(process.env.AI_API_KEY);
-        const model = genAI.getGenerativeModel({ model: process.env.AI_MODEL || 'gemini-2.0-flash-lite' });
-
-        const prompt = `You are a strict resume parser. Parse the following resume text into a structured JSON matching this schema:
-{
-  "personal": { "name": "", "email": "", "phone": "", "location": "", "portfolio": "", "linkedIn": "", "gitHub": "" },
-  "summary": "",
-  "experiences": [{ "id": "exp-1", "company": "", "role": "", "location": "", "startDate": "", "endDate": "", "responsibilities": [], "achievements": [], "metrics": [], "technologies": [] }],
-  "education": [{ "id": "edu-1", "institution": "", "degree": "", "field": "", "startDate": "", "endDate": "", "gpa": "" }],
-  "skills": [{ "name": "", "category": "TECHNICAL" }],
-  "projects": [{ "id": "proj-1", "projectName": "", "description": "", "role": "", "technologies": [], "measurableImpact": "", "link": "" }],
-  "certifications": [{ "id": "cert-1", "certification": "", "issuer": "", "date": "" }],
-  "achievements": [{ "id": "ach-1", "award": "", "competition": "", "ranking": "", "measurableAchievement": "" }],
-  "publications": []
-}
-
-CRITICAL GUARDRAIL: Do NOT invent, fabricate, or hallucinate missing facts, numbers, dates, degrees, or companies. Extract ONLY what is explicitly present in the text. Return ONLY valid raw JSON with no markdown formatting.
-
-Raw Resume Text:
-${extractedText.substring(0, 4000)}`;
-
-        const result = await model.generateContent(prompt);
-        const responseText = result.response.text();
-        const jsonText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
-        const aiSpine = JSON.parse(jsonText);
-        if (aiSpine && aiSpine.personal) {
-          candidateSpine = { ...candidateSpine, ...aiSpine, rawSourceText: extractedText };
-        }
-      } catch (aiErr) {
-        console.warn('⚠️ AI refinement skipped for resume import, using deterministic parser:', aiErr);
-      }
-    }
+    // 1. Execute Layered Resume Extraction Pipeline
+    const { structuredData, candidateSpine, extractionMethod, providerUsed } = await resumeExtractionService.processResumeUpload(
+      file.buffer,
+      filename,
+      mimeType
+    );
 
     const detectedSections = {
       personal: Boolean(candidateSpine.personal?.name || candidateSpine.personal?.email),
@@ -106,8 +47,11 @@ ${extractedText.substring(0, 4000)}`;
       achievements: Boolean(candidateSpine.achievements?.length),
     };
 
-    // Save to Neon PostgreSQL database
-    const resumeTitle = `${candidateSpine.personal?.name || 'Candidate'} — ${filename}`;
+    // 2. Save to Neon PostgreSQL database with Version 1 (Original Imported Resume)
+    const candidateName = candidateSpine.personal?.name && candidateSpine.personal.name !== 'Candidate Profile'
+      ? candidateSpine.personal.name
+      : filename.replace(/\.[^/.]+$/, '');
+    const resumeTitle = `${candidateName} — ${filename}`;
     const targetRole = candidateSpine.experiences?.[0]?.role || 'Software Engineer';
     const spineJson = JSON.stringify(candidateSpine);
 
@@ -120,9 +64,9 @@ ${extractedText.substring(0, 4000)}`;
         versions: {
           create: {
             version: 1,
-            versionName: `Imported — ${filename}`,
+            versionName: `Version 1 — Imported Resume (${filename})`,
             targetJobTitle: targetRole,
-            atsScore: 88.0,
+            atsScore: 90.0,
             optimizedContent: spineJson,
           },
         },
@@ -130,12 +74,20 @@ ${extractedText.substring(0, 4000)}`;
       include: { versions: true, atsScans: true, coverLetters: true, linkedInProfiles: true },
     });
 
+    console.log(`[ResumeController] Saved imported resume ${dbResume.id} to Neon DB via ${extractionMethod} (${providerUsed})`);
+
     return sendSuccess(
       res,
       {
+        success: true,
         resumeId: dbResume.id,
+        versionId: dbResume.versions[0]?.id || 'v1',
+        extractionMethod,
+        providerUsed,
+        status: 'completed',
         resume: dbResume,
         candidateSpine,
+        structuredData,
         detectedSections,
         filename,
         fileSize: file.size,
@@ -143,8 +95,8 @@ ${extractedText.substring(0, 4000)}`;
       201
     );
   } catch (err: any) {
-    console.error('❌ Resume import failed:', err);
-    return sendError(res, err.message || "We couldn't process this file. Try another PDF or DOCX.", 500);
+    console.error('❌ Resume import error:', err);
+    return sendError(res, err.message || 'Resume analysis temporarily failed. Please retry.', 500);
   }
 }
 

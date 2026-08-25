@@ -29,6 +29,7 @@ const upload = multer({
 router.post('/resume/create', upload.single('file'), createOrParseResume);
 router.post('/resume/parse', upload.single('file'), createOrParseResume);
 router.post('/resume/import', upload.single('file'), importExistingResume);
+router.post('/resume/upload', upload.single('file'), importExistingResume);
 router.post('/resume/save', saveResume);
 router.get('/resume/:id', getResume);
 
