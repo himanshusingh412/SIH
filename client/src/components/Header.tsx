@@ -1,17 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Cpu,
   ShieldCheck,
   Download,
   Zap,
   RefreshCw,
-  CheckCircle2,
   AlertTriangle,
   XCircle,
   Info,
-  ChevronDown,
 } from 'lucide-react';
 import { apiClient } from '../services/apiClient';
+import { BrandLogo } from './BrandLogo';
 
 interface HeaderProps {
   onLoadDemo: () => void;
@@ -261,7 +259,7 @@ export const Header: React.FC<HeaderProps> = ({
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '4px',
+            gap: '6px',
             background: 'var(--bg-secondary)',
             padding: '0 10px',
             height: '34px',
@@ -269,7 +267,7 @@ export const Header: React.FC<HeaderProps> = ({
             border: '1px solid var(--border-color)',
           }}
         >
-          <Cpu size={13} color="var(--burgundy-700)" aria-hidden="true" />
+          <BrandLogo name={selectedProvider === 'openai' ? 'openai' : 'gemini'} size={15} />
           <select
             aria-label="Select AI Provider"
             value={selectedProvider}
@@ -286,9 +284,9 @@ export const Header: React.FC<HeaderProps> = ({
               fontFamily: 'var(--font-sans)',
             }}
           >
-            <option value="gemini"  style={{ background: '#FFF8FA' }}>Gemini 2.0 Flash Lite</option>
-            <option value="openai"  style={{ background: '#FFF8FA' }}>OpenAI GPT-4o</option>
-            <option value="mock"    style={{ background: '#FFF8FA' }}>Mock AI (Demo)</option>
+            <option value="gemini" style={{ background: '#FFF8FA' }}>Gemini 2.0 Flash Lite</option>
+            <option value="openai" style={{ background: '#FFF8FA' }}>OpenAI GPT-4o</option>
+            <option value="mock"   style={{ background: '#FFF8FA' }}>Mock AI (Demo)</option>
           </select>
         </div>
 

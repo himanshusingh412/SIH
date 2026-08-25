@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Download, Copy, FileText, Printer, Presentation, Check, X, ShieldCheck, FileSpreadsheet, Code } from 'lucide-react';
+import { Download, Copy, Printer, Check, X, ShieldCheck } from 'lucide-react';
 import type { GeneratedOutput } from '../types';
+import { BrandLogo } from './BrandLogo';
 
 interface ExportModalProps {
   outputs: GeneratedOutput[];
@@ -188,7 +189,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           </h2>
         </div>
         <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--font-xs)', marginBottom: '18px' }}>
-          Export native documents (.docx, .pdf, .pptx) and structured datasets (.json, .csv, .xml, .yaml).
+          Export native binary documents and structured data files with authentic format branding.
         </p>
 
         {exportNotice && (
@@ -210,42 +211,42 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           </div>
         )}
 
-        {/* Real Exporters Grid */}
+        {/* Real Brand Exporters Grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '16px' }}>
-          <button className="btn-primary btn-sm" onClick={handleExportDOCX} style={{ justifyContent: 'center' }}>
-            <FileText size={14} aria-hidden="true" /> Word (.docx)
+          <button className="btn-primary btn-sm" onClick={handleExportDOCX} style={{ justifyContent: 'flex-start', gap: '8px' }}>
+            <BrandLogo name="word" size={16} /> Word (.docx)
           </button>
 
-          <button className="btn-primary btn-sm" onClick={handleExportPDF} style={{ justifyContent: 'center' }}>
-            <Download size={14} aria-hidden="true" /> PDF (.pdf)
+          <button className="btn-primary btn-sm" onClick={handleExportPDF} style={{ justifyContent: 'flex-start', gap: '8px' }}>
+            <BrandLogo name="pdf" size={16} /> PDF (.pdf)
           </button>
 
-          <button className="btn-primary btn-sm" onClick={handleExportPPTX} style={{ justifyContent: 'center' }}>
-            <Presentation size={14} aria-hidden="true" /> PowerPoint (.pptx)
+          <button className="btn-primary btn-sm" onClick={handleExportPPTX} style={{ justifyContent: 'flex-start', gap: '8px' }}>
+            <BrandLogo name="powerpoint" size={16} /> PowerPoint (.pptx)
           </button>
 
-          <button className="btn-secondary btn-sm" onClick={handleExportJSON} style={{ justifyContent: 'center' }}>
-            <Code size={14} aria-hidden="true" /> JSON (.json)
+          <button className="btn-secondary btn-sm" onClick={handleExportJSON} style={{ justifyContent: 'flex-start', gap: '8px' }}>
+            <BrandLogo name="gemini" size={16} /> JSON (.json)
           </button>
 
-          <button className="btn-secondary btn-sm" onClick={handleExportCSV} style={{ justifyContent: 'center' }}>
-            <FileSpreadsheet size={14} aria-hidden="true" /> CSV (.csv)
+          <button className="btn-secondary btn-sm" onClick={handleExportCSV} style={{ justifyContent: 'flex-start', gap: '8px' }}>
+            <BrandLogo name="excel" size={16} /> CSV (.csv)
           </button>
 
-          <button className="btn-secondary btn-sm" onClick={handleExportXML} style={{ justifyContent: 'center' }}>
-            <Code size={14} aria-hidden="true" /> XML (.xml)
+          <button className="btn-secondary btn-sm" onClick={handleExportXML} style={{ justifyContent: 'flex-start', gap: '8px' }}>
+            <BrandLogo name="neon" size={16} /> XML (.xml)
           </button>
 
-          <button className="btn-secondary btn-sm" onClick={handleExportYAML} style={{ justifyContent: 'center' }}>
-            <Code size={14} aria-hidden="true" /> YAML (.yaml)
+          <button className="btn-secondary btn-sm" onClick={handleExportYAML} style={{ justifyContent: 'flex-start', gap: '8px' }}>
+            <BrandLogo name="prisma" size={16} /> YAML (.yaml)
           </button>
 
-          <button className="btn-secondary btn-sm" onClick={handleExportMarkdown} style={{ justifyContent: 'center' }}>
-            <FileText size={14} aria-hidden="true" /> Markdown (.md)
+          <button className="btn-secondary btn-sm" onClick={handleExportMarkdown} style={{ justifyContent: 'flex-start', gap: '8px' }}>
+            <BrandLogo name="github" size={16} /> Markdown (.md)
           </button>
 
-          <button className="btn-secondary btn-sm" onClick={handleExportTXT} style={{ justifyContent: 'center' }}>
-            <FileText size={14} aria-hidden="true" /> Text (.txt)
+          <button className="btn-secondary btn-sm" onClick={handleExportTXT} style={{ justifyContent: 'flex-start', gap: '8px' }}>
+            <Download size={15} aria-hidden="true" /> Text (.txt)
           </button>
         </div>
 

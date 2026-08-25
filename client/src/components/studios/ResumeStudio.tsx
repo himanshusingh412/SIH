@@ -6,7 +6,6 @@ import {
   Sparkles,
   History as HistoryIcon,
   Mail,
-  Share2,
   BarChart3,
   Download,
   Check,
@@ -19,6 +18,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { apiClient } from '../../services/apiClient';
+import { BrandLogo } from '../BrandLogo';
 
 interface WorkExperience {
   id: string;
@@ -463,26 +463,26 @@ Requirements:
     { id: 'optimizer', label: 'Resume Optimizer', icon: Sparkles },
     { id: 'versions', label: 'Resume Versions', icon: HistoryIcon },
     { id: 'cover-letter', label: 'Cover Letter', icon: Mail },
-    { id: 'linkedin', label: 'LinkedIn Profile', icon: Share2 },
+    { id: 'linkedin', label: 'LinkedIn Profile', brand: 'linkedin' as const },
     { id: 'analytics', label: 'Resume Analytics', icon: BarChart3 },
   ];
 
   return (
-    <div style={{ padding: '24px 36px', maxWidth: '1440px', margin: '0 auto', color: 'var(--text-main)' }}>
+    <div className="page-enter" style={{ padding: '24px 32px', maxWidth: '1440px', margin: '0 auto', color: 'var(--text-primary)' }}>
       {/* Top Header & Export Toolbar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
-            <ShieldCheck size={26} color="#6366f1" />
-            <h1 style={{ fontSize: '1.6rem', fontWeight: 800 }} className="gradient-text">
-              Resume Intelligence & ATS Studio
+            <ShieldCheck size={24} color="var(--burgundy-700)" aria-hidden="true" />
+            <h1 style={{ fontSize: 'var(--font-xl)', fontWeight: 800, color: 'var(--burgundy-900)', margin: 0 }}>
+              Resume Intelligence &amp; ATS Studio
             </h1>
-            <span style={{ fontSize: '0.72rem', background: 'rgba(16, 185, 129, 0.12)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '2px 8px', borderRadius: '4px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-              🟢 Neon PostgreSQL + Gemini 3.1
+            <span className="badge badge-success">
+              ● Neon PostgreSQL + Gemini
             </span>
           </div>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.86rem' }}>
-            Candidate Content Spine → Job Description Match → Real 8-Dimension ATS Scanner → Fact-Locked Optimization
+          <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--font-xs)', margin: 0 }}>
+            Candidate Content Spine → Job Match → Real 8-Dimension ATS Scanner → Fact-Locked Optimization
           </p>
         </div>
 
@@ -491,14 +491,8 @@ Requirements:
           <select
             value={template}
             onChange={(e: any) => setTemplate(e.target.value)}
-            style={{
-              background: 'rgba(0,0,0,0.5)',
-              border: '1px solid var(--border-color)',
-              color: 'white',
-              borderRadius: '6px',
-              padding: '6px 12px',
-              fontSize: '0.8rem',
-            }}
+            className="input"
+            style={{ width: 'auto', height: '36px', fontSize: 'var(--font-xs)', padding: '0 10px' }}
           >
             <option value="ATS_CLASSIC">ATS Classic Template</option>
             <option value="MODERN_PROFESSIONAL">Modern Professional</option>
@@ -507,17 +501,17 @@ Requirements:
           </select>
 
           {/* Autosave Status */}
-          <span style={{ fontSize: '0.75rem', color: saveStatus === 'SAVED' ? '#10b981' : saveStatus === 'SAVING' ? '#38bdf8' : 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-            {saveStatus === 'SAVING' && <RefreshCw size={12} className="spin" />}
-            {saveStatus === 'SAVED' && <CheckCircle2 size={12} />}
+          <span style={{ fontSize: 'var(--font-xs)', color: saveStatus === 'SAVED' ? 'var(--color-success)' : saveStatus === 'SAVING' ? 'var(--burgundy-700)' : 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
+            {saveStatus === 'SAVING' && <RefreshCw size={12} className="spin" aria-hidden="true" />}
+            {saveStatus === 'SAVED' && <CheckCircle2 size={12} aria-hidden="true" />}
             {saveStatus === 'SAVING' ? 'Autosaving to Neon...' : saveStatus === 'SAVED' ? 'Saved to Neon' : 'Draft'}
           </span>
 
-          <button className="btn-primary" onClick={handleDownloadDocx} style={{ fontSize: '0.82rem', padding: '8px 14px' }}>
-            <Download size={15} /> Export DOCX
+          <button className="btn-primary btn-sm" onClick={handleDownloadDocx}>
+            <BrandLogo name="word" size={15} /> Export DOCX
           </button>
-          <button className="btn-secondary" onClick={handleDownloadPdf} style={{ fontSize: '0.82rem', padding: '8px 14px' }}>
-            <Download size={15} /> Export PDF
+          <button className="btn-secondary btn-sm" onClick={handleDownloadPdf}>
+            <BrandLogo name="pdf" size={15} /> Export PDF
           </button>
         </div>
       </div>
@@ -530,7 +524,7 @@ Requirements:
       )}
 
       {/* 8 Subsections Tab Navigation */}
-      <div style={{ display: 'flex', gap: '6px', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px', marginBottom: '24px', overflowX: 'auto' }}>
+      <div className="tab-list" style={{ overflowX: 'auto' }}>
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const active = activeTab === tab.id;
@@ -538,22 +532,14 @@ Requirements:
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '8px 14px',
-                borderRadius: '8px',
-                background: active ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
-                color: active ? '#ffffff' : 'var(--text-muted)',
-                border: active ? '1px solid #6366f1' : '1px solid transparent',
-                fontSize: '0.82rem',
-                fontWeight: active ? 700 : 500,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-              }}
+              className={`tab-item ${active ? 'active' : ''}`}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '7px' }}
             >
-              <Icon size={16} color={active ? '#818cf8' : 'var(--text-muted)'} />
+              {tab.brand ? (
+                <BrandLogo name={tab.brand} size={15} />
+              ) : Icon ? (
+                <Icon size={15} color={active ? 'var(--burgundy-700)' : 'var(--text-muted)'} aria-hidden="true" />
+              ) : null}
               <span>{tab.label}</span>
             </button>
           );
@@ -1021,7 +1007,7 @@ Requirements:
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <h3 style={{ fontSize: '1.2rem', fontWeight: 700 }}>LinkedIn Profile Assets</h3>
             <button className="btn-primary" onClick={handleGenerateLinkedIn} disabled={isLoading}>
-              {isLoading ? <RefreshCw size={15} className="spin" /> : <Share2 size={15} />} Generate LinkedIn Content
+              {isLoading ? <RefreshCw size={15} className="spin" aria-hidden="true" /> : <BrandLogo name="linkedin" size={15} />} Generate LinkedIn Content
             </button>
           </div>
 
