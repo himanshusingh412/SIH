@@ -1,11 +1,12 @@
 import { Request, Response } from 'express';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { config } from '../config';
+import { parseGeminiError } from '../utils/geminiErrorHandler';
 
 // ============================================================
 // CONTENTSPINE AI PROTOTYPE CONTEXT
-// Rich, self-contained knowledge base about the prototype.
-// This context is injected as a system prompt so OpenAI GPT-4o
-// can answer detailed questions about the SIH 2026 project.
+// Rich, self-contained knowledge base about the SIH 2026 project.
+// Injected as the system instruction so Gemini answers accurately.
 // ============================================================
 const PROTOTYPE_CONTEXT = `
 You are the ContentSpine AI Prototype Assistant — an expert on the SIH 2026 ContentSpine AI project.
@@ -40,8 +41,7 @@ ARCHITECTURE
 Frontend: React 18 + TypeScript + Vite (client/)
 Backend: Node.js + Express + TypeScript (server/)
 Database: Neon PostgreSQL (production) + Prisma ORM v5.22
-AI Primary: Google Gemini gemini-3.1-flash-lite (via @google/generative-ai SDK)
-AI Secondary: OpenAI GPT-4o (via REST API — requires OPENAI_API_KEY)
+AI Primary: Google Gemini gemini-2.0-flash-lite (via @google/generative-ai SDK)
 AI Local: Ollama Llama3 (local dev only, not on Vercel)
 AI Testing: Mock Provider (deterministic, testing only)
 Deployment: Vercel (serverless)
@@ -153,8 +153,8 @@ POST /api/projects/:id/generate      — Generate all outputs
 POST /api/resume/create              — Create/parse resume
 POST /api/resume/ats-scan            — Run ATS scan
 POST /api/resume/optimize            — Optimize with Gemini
-POST /api/agents/knowledge           — Knowledge Agent Q&A
-POST /api/agents/prototype           — Prototype Assistant Q&A (OpenAI GPT-4o)
+POST /api/agents/knowledge           — Knowledge Agent Q&A (fact-locked)
+POST /api/agents/prototype           — Prototype Assistant Q&A (Gemini, full project context)
 GET  /api/conversations              — List conversations
 POST /api/ai/providers/test          — Test provider connectivity
 
@@ -168,13 +168,12 @@ Build: vercel-build script
   3. prisma db push (if DATABASE_URL set)
   4. tsc (server)
   5. vite build (client)
-Required Vercel env vars: DATABASE_URL, AI_API_KEY, AI_PROVIDER=gemini, AI_MODEL=gemini-3.1-flash-lite, DEMO_MODE=false
-Optional: OPENAI_API_KEY (for OpenAI provider and Prototype Assistant)
+Required Vercel env vars: DATABASE_URL, AI_API_KEY, AI_PROVIDER=gemini, AI_MODEL=gemini-2.0-flash-lite, DEMO_MODE=false
 
 ==============================
 RATE LIMITING (GEMINI FREE TIER)
 ==============================
-Gemini Free Tier: 15 requests/minute
+Gemini Free Tier: 15 requests/minute (shared across Knowledge Agent + Prototype Assistant)
 When limit hit:
 - HTTP 429 response
 - Error code: GEMINI_RATE_LIMITED
@@ -189,10 +188,11 @@ KEY INNOVATIONS
 2. Source-Only Guardrail: Knowledge Agent refuses to speculate beyond source
 3. Candidate Content Spine: Resume facts structured same way as document facts
 4. 9-Dimension ATS Scoring: Comprehensive ATS compatibility analysis
-5. Multi-Provider Factory: Gemini / OpenAI / Llama3 / Mock — switchable at runtime
+5. Multi-Provider Factory: Gemini / Llama3 / Mock — switchable at runtime
 6. Persistent History: All conversations in Neon, not localStorage
 7. Real Dashboard Metrics: Every number from live Neon queries, no hardcoded values
 8. Sanitized Error Responses: DATABASE_UNAVAILABLE pattern — no credential leaks
+9. Voice Input: Web Speech API for hands-free question input (Chrome/Edge)
 
 ==============================
 WHAT IS NOT IMPLEMENTED
@@ -204,9 +204,11 @@ WHAT IS NOT IMPLEMENTED
 - CI/CD automated tests (test scripts exist but no GitHub Actions workflow)
 `;
 
+const PROTO_MODEL = 'gemini-2.0-flash-lite';
+
 /**
  * POST /api/agents/prototype
- * OpenAI GPT-4o powered prototype assistant with rich ContentSpine AI context.
+ * Gemini-powered prototype assistant with rich ContentSpine AI context.
  */
 export const prototypeAgentHandler = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -220,82 +222,45 @@ export const prototypeAgentHandler = async (req: Request, res: Response): Promis
       return;
     }
 
-    const apiKey = config.openaiApiKey;
+    const apiKey = config.aiApiKey || config.geminiApiKey;
     if (!apiKey) {
-      // Graceful fallback: provide a structured "not configured" response
+      // Graceful offline fallback
       res.json({
         success: true,
         data: {
           answer: generateFallbackAnswer(message.trim()),
-          provider: 'openai',
-          model: 'gpt-4o',
+          provider: 'gemini',
+          model: PROTO_MODEL,
           grounded: true,
           configured: false,
-          note: 'OPENAI_API_KEY is not configured. Showing offline prototype knowledge.',
+          note: 'AI_API_KEY is not configured. Showing offline prototype knowledge.',
         },
       });
       return;
     }
 
-    // Build message history for multi-turn context (last 10 exchanges)
-    const historyMessages = (Array.isArray(conversationHistory) ? conversationHistory : [])
+    // Build prior conversation turns for multi-turn context (last 20 messages)
+    const priorTurns = (Array.isArray(conversationHistory) ? conversationHistory : [])
       .slice(-20)
       .map((m: any) => ({
-        role: m.role === 'USER' ? 'user' : 'assistant',
-        content: m.content,
+        role: m.role === 'USER' ? 'user' : 'model',
+        parts: [{ text: m.content }],
       }));
 
-    const messages = [
-      { role: 'system', content: PROTOTYPE_CONTEXT },
-      ...historyMessages,
-      { role: 'user', content: message.trim() },
-    ];
-
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: config.openaiModel || 'gpt-4o',
-        messages,
-        temperature: 0.3,
-        max_tokens: 1000,
-      }),
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({
+      model: PROTO_MODEL,
+      systemInstruction: PROTOTYPE_CONTEXT,
     });
 
-    if (!response.ok) {
-      const errJson: any = await response.json().catch(() => ({}));
-      const statusCode = response.status;
-      const errMsg = errJson.error?.message || `OpenAI API returned HTTP ${statusCode}`;
-
-      if (statusCode === 429) {
-        res.status(429).json({
-          success: false,
-          error: {
-            code: 'OPENAI_RATE_LIMITED',
-            message: 'OpenAI rate limit reached. Please try again shortly.',
-            retryAfterSeconds: 30,
-          },
-        });
-        return;
-      }
-
-      res.status(statusCode >= 500 ? 502 : 400).json({
-        success: false,
-        error: { code: 'OPENAI_ERROR', message: errMsg },
-      });
-      return;
-    }
-
-    const json: any = await response.json();
-    const answer = json.choices?.[0]?.message?.content;
+    const chat = model.startChat({ history: priorTurns });
+    const result = await chat.sendMessage(message.trim());
+    const answer = result.response.text();
 
     if (!answer) {
       res.status(502).json({
         success: false,
-        error: { code: 'OPENAI_EMPTY_RESPONSE', message: 'OpenAI returned an empty response.' },
+        error: { code: 'GEMINI_EMPTY_RESPONSE', message: 'Gemini returned an empty response.' },
       });
       return;
     }
@@ -304,27 +269,40 @@ export const prototypeAgentHandler = async (req: Request, res: Response): Promis
       success: true,
       data: {
         answer: answer.trim(),
-        provider: 'openai',
-        model: config.openaiModel || 'gpt-4o',
+        provider: 'gemini',
+        model: PROTO_MODEL,
         grounded: true,
         configured: true,
       },
     });
   } catch (err: any) {
+    const rateInfo = parseGeminiError(err);
+
+    if (rateInfo.isRateLimited) {
+      res.status(429).json({
+        success: false,
+        error: {
+          code: 'GEMINI_RATE_LIMITED',
+          message: rateInfo.message,
+          retryAfterSeconds: rateInfo.retryAfterSeconds,
+        },
+      });
+      return;
+    }
+
     console.error('❌ Prototype Agent Error:', err);
     res.status(500).json({
       success: false,
       error: {
         code: 'PROTOTYPE_AGENT_FAILED',
-        message: err.message || 'The prototype assistant could not respond right now.',
+        message: rateInfo.message || err.message || 'The prototype assistant could not respond right now.',
       },
     });
   }
 };
 
 /**
- * Offline fallback: answer common prototype questions without calling OpenAI.
- * Used when OPENAI_API_KEY is not configured.
+ * Offline fallback for common questions when AI_API_KEY is not configured.
  */
 function generateFallbackAnswer(question: string): string {
   const q = question.toLowerCase();
@@ -353,18 +331,18 @@ The flow:
   }
 
   if (q.includes('resume') || q.includes('ats')) {
-    return `**Resume Intelligence & ATS Studio** is ContentSpine AI's 8-tab resume system:
+    return `**Resume Intelligence & ATS Studio** — 8-tab system:
 
-1. **Resume Builder** — structured resume editor
-2. **ATS Scanner** — 9-dimension compatibility scoring (keyword match, skills, experience, education, structure, formatting, contact info, content quality)
-3. **Job Match** — gap analysis against a job description
-4. **Resume Optimizer** — Gemini-powered optimization (never invents facts)
-5. **Resume Versions** — versioned resumes per target job
+1. **Resume Builder** — structured editor
+2. **ATS Scanner** — 9-dimension scoring (keyword, skills, experience, education, structure, formatting, contact, content quality)
+3. **Job Match** — gap analysis vs. job description
+4. **Resume Optimizer** — Gemini optimization (never invents facts)
+5. **Resume Versions** — versioned per target job
 6. **Cover Letter** — Gemini-generated tailored letter
 7. **LinkedIn Profile** — headline, about, experience highlights
 8. **Resume Analytics** — ATS score history, keyword trends
 
-All data persisted to **Neon PostgreSQL**. Export as DOCX or PDF.`;
+All data persisted to Neon PostgreSQL. Export as DOCX or PDF.`;
   }
 
   if (q.includes('tech') || q.includes('stack') || q.includes('built with')) {
@@ -375,25 +353,16 @@ All data persisted to **Neon PostgreSQL**. Export as DOCX or PDF.`;
 | Frontend | React 18 + TypeScript + Vite |
 | Backend | Node.js + Express + TypeScript |
 | Database | Neon PostgreSQL + Prisma v5.22 |
-| AI Primary | Google Gemini gemini-3.1-flash-lite |
-| AI Secondary | OpenAI GPT-4o |
+| AI | Google Gemini gemini-2.0-flash-lite |
 | Deployment | Vercel (serverless) |
-| Export | docx + pdfkit + pptxgenjs |
-| File Parsing | pdf-parse + custom adapters |`;
+| Export | docx + pdfkit + pptxgenjs |`;
   }
 
-  if (q.includes('deploy') || q.includes('vercel') || q.includes('production')) {
+  if (q.includes('deploy') || q.includes('vercel')) {
     return `**ContentSpine AI** is deployed on **Vercel** at:
 https://sih-2026-ai-engine.vercel.app
 
-**Build process:**
-1. npm install (client)
-2. prisma generate
-3. prisma db push → Neon PostgreSQL
-4. tsc (server TypeScript)
-5. vite build (client)
-
-**Required env vars:** DATABASE_URL (Neon), AI_API_KEY (Gemini), AI_PROVIDER=gemini, DEMO_MODE=false`;
+**Required env vars:** DATABASE_URL (Neon), AI_API_KEY (Gemini), AI_PROVIDER=gemini, AI_MODEL=gemini-2.0-flash-lite, DEMO_MODE=false`;
   }
 
   if (q.includes('output') || q.includes('generate') || q.includes('format')) {
@@ -407,14 +376,12 @@ https://sih-2026-ai-engine.vercel.app
 6. Infographic (data structure)
 7. Video Package (script + shot list)
 
-**Export formats:** DOCX, PDF, PPTX, JSON, CSV, Markdown, HTML
-
-All outputs are validated against locked facts for factual accuracy.`;
+**Export formats:** DOCX, PDF, PPTX, JSON, CSV, Markdown, HTML`;
   }
 
-  return `I'm the **ContentSpine AI Prototype Assistant** (offline mode — OPENAI_API_KEY not configured).
+  return `I'm the **ContentSpine AI Prototype Assistant** (offline mode — AI_API_KEY not configured).
 
-I can answer questions about:
+Ask me about:
 - 🏗️ What ContentSpine AI is and how it works
 - 🔒 The Fact Lock architecture and hallucination prevention
 - 📄 Resume Intelligence & ATS Studio (8 tabs)
@@ -423,5 +390,5 @@ I can answer questions about:
 - 🚀 Deployment and API architecture
 - 📊 Database schema (23 Prisma models)
 
-Try asking: *"What is ContentSpine AI?"*, *"How does Fact Lock work?"*, or *"What is the ATS scanner?"*`;
+Try: *"What is ContentSpine AI?"*, *"How does Fact Lock work?"*, or *"Tell me about the ATS scanner"*`;
 }

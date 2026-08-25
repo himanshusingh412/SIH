@@ -106,9 +106,9 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({
       id: 'proto-welcome',
       role: 'ASSISTANT',
       content:
-        "Hello! I'm the **ContentSpine AI Prototype Assistant** powered by OpenAI GPT-4o.\n\nI know everything about the ContentSpine AI prototype — architecture, features, tech stack, Fact Lock system, Resume Studio, Knowledge Agent, database schema, deployment, and more.\n\nAsk me anything about the project!",
-      provider: 'openai',
-      model: 'gpt-4o',
+        "Hello! I'm the **ContentSpine AI Prototype Assistant** powered by Gemini.\n\nI know everything about the ContentSpine AI prototype — architecture, features, tech stack, Fact Lock system, Resume Studio, Knowledge Agent, database schema, deployment, and more.\n\nAsk me anything about the project!",
+      provider: 'gemini',
+      model: 'gemini-2.0-flash-lite',
       grounded: true,
       createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     },
@@ -482,16 +482,16 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({
 
       if (!res.ok || json.success === false) {
         const code = json?.error?.code;
-        const retryAfter = json?.error?.retryAfterSeconds || 30;
+        const retryAfter = json?.error?.retryAfterSeconds || 45;
 
-        if (res.status === 429 || code === 'OPENAI_RATE_LIMITED') {
+        if (res.status === 429 || code === 'GEMINI_RATE_LIMITED') {
           setProtoRateLimit({ retryAfterSeconds: retryAfter, remainingSeconds: retryAfter });
           setProtoMessages((prev) => [
             ...prev,
             {
               id: `proto-err-${Date.now()}`,
               role: 'ASSISTANT',
-              content: `🟡 **OpenAI is temporarily rate-limited.**\n\nPlease wait ${retryAfter} seconds and try again.`,
+              content: `🟡 **Gemini is temporarily rate-limited.**\n\nPlease wait ${retryAfter} seconds and try again.`,
               isError: true,
               createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             },
@@ -520,8 +520,8 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({
             id: `proto-asst-${Date.now()}`,
             role: 'ASSISTANT',
             content: answer,
-            provider: 'openai',
-            model: json.data?.model || 'gpt-4o',
+            provider: 'gemini',
+            model: json.data?.model || 'gemini-2.0-flash-lite',
             grounded: true,
             createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           },
@@ -701,7 +701,7 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({
       {isAsking && (
         <div style={{ alignSelf: 'flex-start', background: 'rgba(18, 24, 38, 0.8)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '10px', color: '#cbd5e1', fontSize: '0.85rem' }}>
           <RefreshCw size={16} className="spin" color="var(--accent-amber)" />
-          {activeTab === 'prototype' ? 'GPT-4o is thinking...' : 'ContentSpine Agent is thinking...'}
+          {activeTab === 'prototype' ? 'Gemini is thinking...' : 'ContentSpine Agent is thinking...'}
         </div>
       )}
       <div ref={scrollRef} />
@@ -744,9 +744,9 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({
             style={{
               padding: '8px 16px',
               borderRadius: '8px',
-              border: activeTab === 'prototype' ? '1px solid rgba(139,92,246,0.5)' : '1px solid var(--border-color)',
-              background: activeTab === 'prototype' ? 'rgba(139,92,246,0.15)' : 'transparent',
-              color: activeTab === 'prototype' ? '#a78bfa' : 'var(--text-muted)',
+              border: activeTab === 'prototype' ? '1px solid rgba(16,185,129,0.5)' : '1px solid var(--border-color)',
+              background: activeTab === 'prototype' ? 'rgba(16,185,129,0.12)' : 'transparent',
+              color: activeTab === 'prototype' ? '#34d399' : 'var(--text-muted)',
               fontSize: '0.82rem',
               fontWeight: 700,
               cursor: 'pointer',
@@ -758,7 +758,7 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({
           >
             <Sparkles size={14} />
             Prototype Assistant
-            <span style={{ fontSize: '0.68rem', background: 'rgba(139,92,246,0.2)', color: '#a78bfa', padding: '1px 5px', borderRadius: '4px' }}>GPT-4o</span>
+            <span style={{ fontSize: '0.68rem', background: 'rgba(16,185,129,0.2)', color: '#34d399', padding: '1px 5px', borderRadius: '4px' }}>Gemini</span>
           </button>
 
           {/* Voice Query button — top right */}
@@ -803,8 +803,8 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({
             <div>
               <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'white' }}>ContentSpine AI Prototype Assistant</div>
               <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <Cpu size={11} color="#a78bfa" />
-                OpenAI GPT-4o · Full prototype knowledge — architecture, features, tech stack, deployment
+                <Cpu size={11} color="#34d399" />
+                Gemini gemini-2.0-flash-lite · Full prototype knowledge — architecture, features, tech stack, deployment
               </div>
             </div>
           </div>
@@ -815,7 +815,7 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({
           <div style={{ background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.35)', borderRadius: '10px', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '10px', color: '#fef3c7', boxShadow: '0 4px 16px rgba(0,0,0,0.3)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 800, fontSize: '0.95rem', color: '#f59e0b' }}>
               <AlertTriangle size={20} />
-              <span>🟡 {activeTab === 'prototype' ? 'OpenAI' : 'Gemini'} is temporarily rate-limited.</span>
+              <span>🟡 Gemini is temporarily rate-limited.</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '0.82rem', color: '#fcd34d', fontWeight: 700 }}>
@@ -893,7 +893,7 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({
               height: '44px',
               opacity: isCurrentlyAsking || !query.trim() || (currentRateLimit && currentRateLimit.remainingSeconds > 0) ? 0.5 : 1,
               cursor: isCurrentlyAsking || !query.trim() || (currentRateLimit && currentRateLimit.remainingSeconds > 0) ? 'not-allowed' : 'pointer',
-              background: activeTab === 'prototype' ? 'linear-gradient(135deg, rgba(139,92,246,0.8), rgba(99,102,241,0.8))' : undefined,
+              background: activeTab === 'prototype' ? 'linear-gradient(135deg, rgba(16,185,129,0.8), rgba(52,211,153,0.7))' : undefined,
             }}
           >
             <Send size={16} /> Send
@@ -1015,9 +1015,9 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({
               Prototype Knowledge Base
             </h4>
 
-            <div style={{ background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.25)', borderRadius: '8px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#a78bfa', fontWeight: 700, fontSize: '0.85rem' }}>
-                <Sparkles size={18} /> OpenAI GPT-4o Powered
+            <div style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '8px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#34d399', fontWeight: 700, fontSize: '0.85rem' }}>
+                <Sparkles size={18} /> Gemini gemini-2.0-flash-lite Powered
               </div>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>
                 This assistant is pre-loaded with full ContentSpine AI prototype knowledge. Ask about architecture, features, tech stack, database schema, API endpoints, deployment, and more.
@@ -1046,12 +1046,12 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({
                   disabled={isProtoAsking || Boolean(protoRateLimit && protoRateLimit.remainingSeconds > 0)}
                   style={{
                     textAlign: 'left',
-                    background: 'rgba(139,92,246,0.06)',
-                    border: '1px solid rgba(139,92,246,0.2)',
+                    background: 'rgba(16,185,129,0.06)',
+                    border: '1px solid rgba(16,185,129,0.2)',
                     borderRadius: '6px',
                     padding: '8px 10px',
                     fontSize: '0.75rem',
-                    color: '#c4b5fd',
+                    color: '#6ee7b7',
                     cursor: isProtoAsking ? 'not-allowed' : 'pointer',
                     opacity: isProtoAsking ? 0.5 : 1,
                     transition: 'all 0.2s ease',
