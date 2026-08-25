@@ -37,15 +37,15 @@ async function runFallbackTest() {
   const mockSpine: ContentSpineData = {
     summary: 'Test Content Spine for Circuit Breaker Fallback',
     entities: [{ id: 'e1', name: 'SIH Platform', type: 'ORGANIZATION', confidence: 0.99, sourceReference: 'ref' }],
-    dates: [{ id: 'd1', key: 'Target Date', value: '2026-08-24', category: 'DATE', isLocked: true }],
-    numbers: [{ id: 'n1', key: 'Accuracy', value: '99.9%', category: 'NUMBER', isLocked: true }],
+    dates: [{ id: 'd1', key: 'Target Date', value: '2026-08-24', category: 'DATE', isLocked: true, sourceSnippet: 'Target Date 2026-08-24' }],
+    numbers: [{ id: 'n1', key: 'Accuracy', value: '99.9%', category: 'NUMBER', isLocked: true, sourceSnippet: 'Accuracy 99.9%' }],
     locations: [],
     events: [],
     risks: [],
     recommendations: [],
     claims: ['Factual accuracy verified across all deliverables.'],
     relationships: [],
-    factLocks: [{ id: 'd1', key: 'Target Date', value: '2026-08-24', category: 'DATE', isLocked: true }],
+    factLocks: [{ id: 'd1', key: 'Target Date', value: '2026-08-24', category: 'DATE', isLocked: true, sourceSnippet: 'Target Date 2026-08-24' }],
   };
 
   const outputRes = await AIProviderManager.generateOutput(mockSpine, 'EXECUTIVE_SUMMARY', 'EXECUTIVE', 'GEMINI');
