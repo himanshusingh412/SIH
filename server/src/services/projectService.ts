@@ -198,17 +198,7 @@ Executive Summary: In Q3 2026, Smart India Hackathon introduced the AI Content T
     ];
 
     console.log(`[OUTPUT] Generation started for 7 deliverable formats`);
-    try {
-      await this.generateOutputs(projectId, defaultOutputTypes, 'EXECUTIVE');
-    } catch (genErr: any) {
-      console.warn(`[OUTPUT] Primary output generation notice (${genErr.message}). Invoking fallback generator.`);
-      // Retry with fallback provider explicitly
-      try {
-        await this.generateOutputs(projectId, defaultOutputTypes, 'EXECUTIVE', 'MOCK');
-      } catch (fallbackErr: any) {
-        console.error(`[OUTPUT] Fallback generation error: ${fallbackErr.message}`);
-      }
-    }
+    await this.generateOutputs(projectId, defaultOutputTypes, 'EXECUTIVE');
 
     const finalProject = await this.repo.findProjectById(projectId);
     console.log(`[REVIEW] Loading project for Review Workspace: ${projectId} (Outputs: ${finalProject?.outputs?.length || 0})`);
@@ -239,14 +229,8 @@ Executive Summary: In Q3 2026, Smart India Hackathon introduced the AI Content T
     const combinedText = docs.map((d) => d.rawText).join('\n\n');
     const category = (docs[0]?.inputCategory as InputCategory) || 'PROMPT';
 
-    let spineData: any;
-    try {
-      const provider = getAIProvider();
-      spineData = await provider.extractContentSpine(combinedText, category);
-    } catch (err: any) {
-      const mockProvider = getAIProvider('MOCK');
-      spineData = await mockProvider.extractContentSpine(combinedText, category);
-    }
+    const provider = getAIProvider();
+    const spineData = await provider.extractContentSpine(combinedText, category);
 
     const classifiedFacts = this.factLockEngine.classifyAndLockFacts(combinedText, []);
 

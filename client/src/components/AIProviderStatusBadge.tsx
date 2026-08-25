@@ -10,7 +10,7 @@ interface ProviderStatusData {
   defaultProvider: string;
 }
 
-export const AIProviderStatusBadge: React.FC<{ selectedProvider?: string }> = ({ selectedProvider = 'gemini' }) => {
+export const AIProviderStatusBadge: React.FC<{ selectedProvider?: string }> = () => {
   const [data, setData] = useState<ProviderStatusData | null>(null);
 
   useEffect(() => {
@@ -34,12 +34,13 @@ export const AIProviderStatusBadge: React.FC<{ selectedProvider?: string }> = ({
 
   const gemini = data?.providers?.gemini;
   const isGeminiRateLimited = gemini?.status === 'rate_limited';
+  const isGeminiConfigured = gemini?.configured ?? true;
   const remainingSec = gemini?.remainingRetrySeconds || 0;
 
   if (isGeminiRateLimited) {
     return (
       <div
-        title={gemini?.message || 'Gemini is temporarily rate limited. Seamlessly using active fallback provider.'}
+        title={gemini?.message || 'Gemini is temporarily rate limited. Please wait for retry interval.'}
         style={{
           display: 'inline-flex',
           alignItems: 'center',
@@ -55,21 +56,34 @@ export const AIProviderStatusBadge: React.FC<{ selectedProvider?: string }> = ({
         }}
       >
         <ShieldAlert size={13} color="#ea580c" aria-hidden="true" />
-        <span>Gemini (Rate Limited {remainingSec > 0 ? `${remainingSec}s` : ''})</span>
-        <span style={{ opacity: 0.6 }}>→</span>
-        <span style={{ color: 'var(--burgundy-700)', fontWeight: 700 }}>Fallback Active ✓</span>
+        <span>Gemini Rate Limited {remainingSec > 0 ? `(${remainingSec}s)` : ''}</span>
       </div>
     );
   }
 
-  const activeName =
-    selectedProvider === 'openai'
-      ? 'OpenAI GPT-4o'
-      : selectedProvider === 'bedrock'
-      ? 'AWS Bedrock (Claude 3.5)'
-      : selectedProvider === 'mock'
-      ? 'Mock AI Engine'
-      : 'Google Gemini 3.1';
+  if (!isGeminiConfigured) {
+    return (
+      <div
+        title="Gemini API Key is not configured on the server."
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '6px',
+          padding: '4px 10px',
+          borderRadius: 'var(--radius-full)',
+          background: 'rgba(239, 68, 68, 0.12)',
+          border: '1px solid rgba(239, 68, 68, 0.3)',
+          color: '#b91c1c',
+          fontSize: 'var(--font-xs)',
+          fontWeight: 600,
+          lineHeight: 1,
+        }}
+      >
+        <ShieldAlert size={13} color="#ef4444" aria-hidden="true" />
+        <span>Gemini Unavailable</span>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -88,7 +102,7 @@ export const AIProviderStatusBadge: React.FC<{ selectedProvider?: string }> = ({
       }}
     >
       <Zap size={13} color="var(--burgundy-700)" aria-hidden="true" />
-      <span>{activeName}</span>
+      <span>Google Gemini Ready</span>
       <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--color-success)', display: 'inline-block' }} aria-hidden="true" />
     </div>
   );

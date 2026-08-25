@@ -86,49 +86,7 @@ export class AgentService {
       },
     });
 
-    if ((!spine || !spine.facts || spine.facts.length === 0) && (projectId === 'demo-project' || projectId === 'default')) {
-      spine = await prisma.contentSpine.findFirst({
-        orderBy: { createdAt: 'desc' },
-        include: {
-          facts: {
-            include: {
-              references: {
-                include: {
-                  sourceDocument: true,
-                },
-              },
-            },
-          },
-          entities: true,
-        },
-      });
-    }
 
-    // Auto-seed if SQLite in-memory/tmp database is empty on Vercel cold container (demo project ONLY)
-    if ((!spine || !spine.facts || spine.facts.length === 0) && (projectId === 'demo-project' || projectId === 'default')) {
-      try {
-        const seeded = await projectService.seedDemoProject();
-        if (seeded && seeded.projectId) {
-          spine = await prisma.contentSpine.findFirst({
-            where: { projectId: seeded.projectId },
-            include: {
-              facts: {
-                include: {
-                  references: {
-                    include: {
-                      sourceDocument: true,
-                    },
-                  },
-                },
-              },
-              entities: true,
-            },
-          });
-        }
-      } catch (e) {
-        // Ignore seed errors
-      }
-    }
 
     const selectedProvider = providerName || config.aiProvider || 'gemini';
     const activeModel =
@@ -420,7 +378,7 @@ Answer cleanly and accurately using ONLY the facts above. If not present in the 
       const firstProject = await prisma.project.findFirst({
         orderBy: { createdAt: 'desc' },
       });
-      targetProjectId = firstProject?.id || 'demo-project';
+      targetProjectId = firstProject?.id || '';
     }
 
     const spine = await prisma.contentSpine.findFirst({

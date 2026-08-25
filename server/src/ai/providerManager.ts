@@ -17,9 +17,6 @@ export interface NormalizedAIResponse {
 
 export interface CircuitBreakerStatus {
   gemini: { status: string; remainingSeconds?: number; message?: string };
-  openai: { status: string; remainingSeconds?: number; message?: string };
-  bedrock: { status: string; remainingSeconds?: number; message?: string };
-  mock: { status: string; message?: string };
   activeProvider: string;
 }
 
@@ -27,24 +24,10 @@ export class AIProviderManager {
   private static activeDeduplications = new Map<string, Promise<any>>();
 
   /**
-   * Returns current health & circuit breaker status across providers
+   * Returns current health & status of authoritative Google Gemini API provider
    */
-  static getStatus(preferredProvider = 'GEMINI'): CircuitBreakerStatus {
+  static getStatus(): CircuitBreakerStatus {
     const geminiHealth = providerHealthTracker.getHealth('gemini');
-    const openAIHealth = providerHealthTracker.getHealth('openai');
-    const bedrockHealth = providerHealthTracker.getHealth('bedrock');
-    const mockHealth = providerHealthTracker.getHealth('mock');
-
-    let active = preferredProvider.toUpperCase();
-    if (active === 'GEMINI' && geminiHealth.status === 'rate_limited') {
-      if (openAIHealth.configured && openAIHealth.status !== 'rate_limited') {
-        active = 'OPENAI';
-      } else if (bedrockHealth.configured && bedrockHealth.status !== 'rate_limited') {
-        active = 'BEDROCK';
-      } else {
-        active = 'MOCK';
-      }
-    }
 
     return {
       gemini: {
@@ -52,31 +35,16 @@ export class AIProviderManager {
         remainingSeconds: geminiHealth.remainingRetrySeconds,
         message: geminiHealth.message,
       },
-      openai: {
-        status: openAIHealth.status,
-        remainingSeconds: openAIHealth.remainingRetrySeconds,
-        message: openAIHealth.message,
-      },
-      bedrock: {
-        status: bedrockHealth.status,
-        remainingSeconds: bedrockHealth.remainingRetrySeconds,
-        message: bedrockHealth.message,
-      },
-      mock: {
-        status: mockHealth.status,
-        message: mockHealth.message,
-      },
-      activeProvider: active,
+      activeProvider: 'GEMINI',
     };
   }
 
   /**
-   * Execute Content Spine extraction using fallback chain (Preferred -> Gemini -> OpenAI -> Mock)
+   * Execute Content Spine extraction using authoritative Live Google Gemini API
    */
   static async extractContentSpine(
     rawText: string,
-    category: InputCategory,
-    preferredProvider?: string
+    category: InputCategory
   ): Promise<{ spine: ContentSpineData; provider: string; model: string }> {
     const dedupeKey = `spine:${category}:${rawText.slice(0, 80)}`;
     if (this.activeDeduplications.has(dedupeKey)) {
@@ -85,50 +53,44 @@ export class AIProviderManager {
     }
 
     const executionPromise = (async () => {
-      const providersToTry = this.getFallbackChain(preferredProvider);
-      let lastError: any = null;
+      const pType: ProviderType = 'GEMINI';
+      const health = providerHealthTracker.getHealth('gemini');
 
-      for (const pType of providersToTry) {
-        // Skip if provider is circuit-broken by active rate limit
-        const health = providerHealthTracker.getHealth(pType.toLowerCase());
-        if (health.status === 'rate_limited') {
-          console.warn(`[CircuitBreaker] Skipping ${pType} (Rate limited for ${health.remainingRetrySeconds}s)`);
-          continue;
-        }
-
-        try {
-          console.log(`[ProviderManager] Attempting Content Spine extraction with provider: ${pType}`);
-          const instance = getAIProviderInstance(pType);
-          const spine = await instance.extractContentSpine(rawText, category);
-          providerHealthTracker.recordSuccess(pType.toLowerCase());
-
-          return {
-            spine,
-            provider: pType,
-            model: instance.name,
-          };
-        } catch (err: any) {
-          lastError = err;
-          const rateInfo = parseGeminiError(err);
-          if (rateInfo.isRateLimited || err.status === 429 || err.code === 'GEMINI_RATE_LIMITED') {
-            console.warn(`[CircuitBreaker] ${pType} hit 429 rate limit (${rateInfo.retryAfterSeconds}s). Switching to next provider.`);
-            providerHealthTracker.recordRateLimit(pType.toLowerCase(), rateInfo.retryAfterSeconds, rateInfo.message);
-          } else {
-            console.warn(`[ProviderManager] ${pType} error: ${err.message}. Trying next fallback provider.`);
-            providerHealthTracker.recordError(pType.toLowerCase(), err.message);
-          }
-        }
+      if (health.status === 'rate_limited' && health.remainingRetrySeconds > 0) {
+        const msg = `Gemini is temporarily rate-limited. Retry in ${health.remainingRetrySeconds}s.`;
+        console.warn(`[ProviderManager] ${msg}`);
+        const err: any = new Error(msg);
+        err.status = 429;
+        err.code = 'GEMINI_RATE_LIMITED';
+        err.retryAfterSeconds = health.remainingRetrySeconds;
+        throw err;
       }
 
-      // Final deterministic fallback (Mock)
-      console.warn(`[ProviderManager] All primary providers unavailable. Executing deterministic Mock provider fallback.`);
-      const mockInstance = getAIProviderInstance('MOCK');
-      const spine = await mockInstance.extractContentSpine(rawText, category);
-      return {
-        spine,
-        provider: 'MOCK',
-        model: 'Mock AI Deterministic Engine',
-      };
+      try {
+        console.log(`[ProviderManager] Executing Content Spine extraction via Live Gemini API...`);
+        const instance = getAIProviderInstance(pType);
+        const spine = await instance.extractContentSpine(rawText, category);
+        providerHealthTracker.recordSuccess('gemini');
+
+        return {
+          spine,
+          provider: pType,
+          model: instance.name,
+        };
+      } catch (err: any) {
+        const rateInfo = parseGeminiError(err);
+        if (rateInfo.isRateLimited || err.status === 429 || err.code === 'GEMINI_RATE_LIMITED') {
+          providerHealthTracker.recordRateLimit('gemini', rateInfo.retryAfterSeconds, rateInfo.message);
+          const rateErr: any = new Error(`Gemini is temporarily rate-limited. Retry in ${rateInfo.retryAfterSeconds || 30} seconds.`);
+          rateErr.status = 429;
+          rateErr.code = 'GEMINI_RATE_LIMITED';
+          rateErr.retryAfterSeconds = rateInfo.retryAfterSeconds;
+          throw rateErr;
+        }
+
+        providerHealthTracker.recordError('gemini', err.message);
+        throw new Error(`Gemini request failed: ${err.message || 'Unable to process document'}. Please retry.`);
+      }
     })();
 
     this.activeDeduplications.set(dedupeKey, executionPromise);
@@ -140,13 +102,12 @@ export class AIProviderManager {
   }
 
   /**
-   * Execute single output generation using fallback chain
+   * Execute deliverable output generation using authoritative Live Google Gemini API
    */
   static async generateOutput(
     spine: ContentSpineData,
     outputType: OutputType,
-    audience: AudienceProfile,
-    preferredProvider?: string
+    audience: AudienceProfile
   ): Promise<NormalizedAIResponse> {
     const dedupeKey = `output:${outputType}:${audience}:${spine.summary.slice(0, 40)}`;
     if (this.activeDeduplications.has(dedupeKey)) {
@@ -155,55 +116,47 @@ export class AIProviderManager {
     }
 
     const executionPromise = (async (): Promise<NormalizedAIResponse> => {
-      const providersToTry = this.getFallbackChain(preferredProvider);
-      let lastError: any = null;
+      const pType: ProviderType = 'GEMINI';
+      const health = providerHealthTracker.getHealth('gemini');
 
-      for (const pType of providersToTry) {
-        const health = providerHealthTracker.getHealth(pType.toLowerCase());
-        if (health.status === 'rate_limited') {
-          console.warn(`[CircuitBreaker] Skipping ${pType} for ${outputType} (Rate limited for ${health.remainingRetrySeconds}s)`);
-          continue;
-        }
-
-        try {
-          console.log(`[ProviderManager] Generating ${outputType} with provider: ${pType}`);
-          const instance = getAIProviderInstance(pType);
-          const res = await instance.generateOutput(spine, outputType, audience);
-          providerHealthTracker.recordSuccess(pType.toLowerCase());
-
-          return {
-            success: true,
-            provider: pType,
-            model: instance.name,
-            title: res.title,
-            content: res.content,
-            isFallback: pType !== (preferredProvider || 'GEMINI').toUpperCase(),
-          };
-        } catch (err: any) {
-          lastError = err;
-          const rateInfo = parseGeminiError(err);
-          if (rateInfo.isRateLimited || err.status === 429 || err.code === 'GEMINI_RATE_LIMITED') {
-            console.warn(`[CircuitBreaker] ${pType} hit 429 during ${outputType} (${rateInfo.retryAfterSeconds}s). Switching to fallback.`);
-            providerHealthTracker.recordRateLimit(pType.toLowerCase(), rateInfo.retryAfterSeconds, rateInfo.message);
-          } else {
-            console.warn(`[ProviderManager] ${pType} error on ${outputType}: ${err.message}. Trying next fallback.`);
-            providerHealthTracker.recordError(pType.toLowerCase(), err.message);
-          }
-        }
+      if (health.status === 'rate_limited' && health.remainingRetrySeconds > 0) {
+        const msg = `Gemini is temporarily rate-limited. Retry in ${health.remainingRetrySeconds}s.`;
+        console.warn(`[ProviderManager] ${msg}`);
+        const err: any = new Error(msg);
+        err.status = 429;
+        err.code = 'GEMINI_RATE_LIMITED';
+        err.retryAfterSeconds = health.remainingRetrySeconds;
+        throw err;
       }
 
-      // Final deterministic fallback (Mock)
-      console.warn(`[ProviderManager] Using Mock provider for ${outputType}`);
-      const mockInstance = getAIProviderInstance('MOCK');
-      const res = await mockInstance.generateOutput(spine, outputType, audience);
-      return {
-        success: true,
-        provider: 'MOCK',
-        model: 'Mock AI Deterministic Engine',
-        title: res.title,
-        content: res.content,
-        isFallback: true,
-      };
+      try {
+        console.log(`[ProviderManager] Generating ${outputType} via Live Gemini API...`);
+        const instance = getAIProviderInstance(pType);
+        const res = await instance.generateOutput(spine, outputType, audience);
+        providerHealthTracker.recordSuccess('gemini');
+
+        return {
+          success: true,
+          provider: pType,
+          model: instance.name,
+          title: res.title,
+          content: res.content,
+          isFallback: false,
+        };
+      } catch (err: any) {
+        const rateInfo = parseGeminiError(err);
+        if (rateInfo.isRateLimited || err.status === 429 || err.code === 'GEMINI_RATE_LIMITED') {
+          providerHealthTracker.recordRateLimit('gemini', rateInfo.retryAfterSeconds, rateInfo.message);
+          const rateErr: any = new Error(`Gemini is temporarily rate-limited. Retry in ${rateInfo.retryAfterSeconds || 30} seconds.`);
+          rateErr.status = 429;
+          rateErr.code = 'GEMINI_RATE_LIMITED';
+          rateErr.retryAfterSeconds = rateInfo.retryAfterSeconds;
+          throw rateErr;
+        }
+
+        providerHealthTracker.recordError('gemini', err.message);
+        throw new Error(`Gemini generation failed for ${outputType}: ${err.message || 'AI request failed'}. Please retry.`);
+      }
     })();
 
     this.activeDeduplications.set(dedupeKey, executionPromise);
@@ -212,24 +165,5 @@ export class AIProviderManager {
     } finally {
       this.activeDeduplications.delete(dedupeKey);
     }
-  }
-
-  /**
-   * Determine provider attempt chain based on user preference and health status
-   */
-  private static getFallbackChain(preferredProvider?: string): ProviderType[] {
-    const chain: ProviderType[] = [];
-    const prefUpper = (preferredProvider || 'GEMINI').toUpperCase() as ProviderType;
-
-    if (['GEMINI', 'OPENAI', 'BEDROCK', 'LLAMA', 'MOCK'].includes(prefUpper)) {
-      chain.push(prefUpper);
-    }
-
-    if (!chain.includes('GEMINI')) chain.push('GEMINI');
-    if (!chain.includes('OPENAI')) chain.push('OPENAI');
-    if (!chain.includes('BEDROCK')) chain.push('BEDROCK');
-    if (!chain.includes('MOCK')) chain.push('MOCK');
-
-    return chain;
   }
 }

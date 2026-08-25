@@ -3,7 +3,7 @@ import { historyService } from '../services/historyService';
 
 export const listConversationsHandler = async (req: Request, res: Response) => {
   try {
-    const projectId = (req.query.projectId as string) || (req.body?.projectId as string) || 'demo-project';
+    const projectId = req.query.projectId ? String(req.query.projectId) : (req.body?.projectId ? String(req.body.projectId) : undefined);
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
     const search = req.query.search as string;
 

@@ -4,11 +4,7 @@ export class HistoryService {
   /**
    * List conversations for a specific project with isolation & optional title/content search
    */
-  async listConversations(projectId: string, limit = 50, search?: string) {
-    if (!projectId) {
-      throw new Error('projectId is required');
-    }
-
+  async listConversations(projectId?: string, limit = 50, search?: string) {
     const searchFilter = search && search.trim()
       ? {
           OR: [
@@ -24,11 +20,10 @@ export class HistoryService {
         }
       : {};
 
+    const whereClause = projectId ? { projectId, ...searchFilter } : { ...searchFilter };
+
     const conversations = await prisma.conversation.findMany({
-      where: {
-        projectId,
-        ...searchFilter,
-      },
+      where: whereClause,
       orderBy: {
         updatedAt: 'desc',
       },

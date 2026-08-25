@@ -79,100 +79,36 @@ interface CandidateContentSpine {
   achievements?: Array<{ id: string; award: string; competition?: string }>;
 }
 
-export const ResumeStudio: React.FC<{ projectId?: string }> = ({ projectId = 'demo-project' }) => {
+export const ResumeStudio: React.FC<{ projectId?: string }> = ({ projectId = '' }) => {
   const [activeTab, setActiveTab] = useState<
     'builder' | 'ats' | 'match' | 'optimizer' | 'versions' | 'cover-letter' | 'linkedin' | 'analytics'
   >('builder');
 
   const [template, setTemplate] = useState<'ATS_CLASSIC' | 'MODERN_PROFESSIONAL' | 'TECHNICAL' | 'EXECUTIVE'>('ATS_CLASSIC');
-  const [resumeId, setResumeId] = useState<string>('demo-resume');
+  const [resumeId, setResumeId] = useState<string>('');
   const [jobId, setJobId] = useState<string | undefined>(undefined);
 
   // Resume State (Structured Candidate Content Spine)
   const [spine, setSpine] = useState<CandidateContentSpine>({
     personal: {
-      name: 'Alex Mercer',
-      email: 'alex.mercer@example.com',
-      phone: '+1 (555) 019-2834',
-      location: 'San Francisco, CA',
-      linkedIn: 'https://linkedin.com/in/alexmercer',
-      gitHub: 'https://github.com/alexmercer',
+      name: '',
+      email: '',
+      phone: '',
+      location: '',
+      linkedIn: '',
+      gitHub: '',
+      portfolio: '',
     },
-    summary:
-      'Results-driven Senior Software Engineer with 4+ years of experience designing scalable microservices, REST APIs, and modern cloud applications. Proven track record of reducing latency by 35% and delivering mission-critical platforms.',
-    experiences: [
-      {
-        id: 'exp-1',
-        company: 'Apex Tech Solutions',
-        role: 'Senior Software Engineer',
-        location: 'San Francisco, CA',
-        startDate: '2024-01',
-        endDate: 'Present',
-        responsibilities: [
-          'Engineered microservices backend handling high throughput data requests.',
-          'Reduced API latency by 35% through query optimization and Redis caching layer.',
-          'Mentored junior developers and instituted automated CI/CD deployment pipelines.',
-        ],
-        achievements: ['Reduced API latency by 35%', 'Scaled platform to 100k daily active users'],
-        metrics: ['35%', '100k users'],
-        technologies: ['Python', 'FastAPI', 'PostgreSQL', 'Docker', 'Redis'],
-      },
-      {
-        id: 'exp-2',
-        company: 'Vanguard Systems',
-        role: 'Full Stack Engineer',
-        location: 'Austin, TX',
-        startDate: '2022-06',
-        endDate: '2023-12',
-        responsibilities: [
-          'Built responsive frontend user interface using React and TypeScript.',
-          'Implemented OAuth2 authentication and role-based access control.',
-        ],
-        achievements: ['Improved test coverage from 60% to 92%'],
-        metrics: ['92% test coverage'],
-        technologies: ['React', 'TypeScript', 'Node.js', 'PostgreSQL'],
-      },
-    ],
-    education: [
-      {
-        id: 'edu-1',
-        institution: 'University of California, Berkeley',
-        degree: 'Bachelor of Science',
-        field: 'Computer Science',
-        startDate: '2018',
-        endDate: '2022',
-        gpa: '3.85',
-      },
-    ],
-    skills: [
-      { name: 'Python', category: 'PROGRAMMING' },
-      { name: 'FastAPI', category: 'FRAMEWORK' },
-      { name: 'JavaScript', category: 'PROGRAMMING' },
-      { name: 'TypeScript', category: 'PROGRAMMING' },
-      { name: 'React', category: 'FRAMEWORK' },
-      { name: 'Node.js', category: 'FRAMEWORK' },
-      { name: 'PostgreSQL', category: 'DATABASE' },
-      { name: 'Docker', category: 'CLOUD' },
-    ],
-    projects: [
-      {
-        id: 'proj-1',
-        projectName: 'ContentSpine AI Engine',
-        description: 'Multimodal content transformation and ATS analysis platform.',
-        technologies: ['TypeScript', 'Node.js', 'React', 'Prisma'],
-        measurableImpact: 'Achieved 99.9% fact retention accuracy across 500+ documents.',
-      },
-    ],
+    summary: '',
+    experiences: [],
+    education: [],
+    skills: [],
+    projects: [],
+    certifications: [],
+    achievements: [],
   });
 
-  const [jobText, setJobText] = useState<string>(`Senior Python & Cloud Engineer — Enterprise Corp
-We are looking for a Senior Software Engineer with expertise in Python, FastAPI, PostgreSQL, AWS, Docker, and Kubernetes.
-Responsibilities:
-- Build low latency backend microservices.
-- Manage cloud infrastructure on AWS.
-Requirements:
-- 4+ years experience with Python, FastAPI, PostgreSQL.
-- Experience with AWS, Docker, Kubernetes.`);
+  const [jobText, setJobText] = useState<string>('');
 
   // Results State
   const [scanResult, setScanResult] = useState<any>(null);
@@ -234,21 +170,13 @@ Requirements:
 
     setSelectedFile(file);
     setUploadStep('UPLOADING');
-    setUploadProgress('Uploading resume to server...');
-
-    const timer1 = setTimeout(() => setUploadProgress('Extracting text & layout structure...'), 500);
-    const timer2 = setTimeout(() => setUploadProgress('Analyzing candidate experience, skills & metrics via AI...'), 1200);
-    const timer3 = setTimeout(() => setUploadProgress('Building candidate profile & persisting to Neon...'), 2400);
+    setUploadProgress('Analyzing resume & extracting candidate profile via AI...');
 
     try {
       const result = await apiClient.importExistingResume(file);
-      clearTimeout(timer1);
-      clearTimeout(timer2);
-      clearTimeout(timer3);
 
       if (result && result.candidateSpine) {
         setImportData(result);
-        // Automatically populate Resume Studio form state with real candidate data
         setSpine(result.candidateSpine);
         if (result.resumeId) setResumeId(result.resumeId);
         setUploadStep('REVIEW');
@@ -256,13 +184,10 @@ Requirements:
         throw new Error(result?.message || "Resume analysis temporarily failed. Please retry.");
       }
     } catch (err: any) {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
-      clearTimeout(timer3);
       setUploadStep('SELECT');
       setUploadError(err.message || "Resume analysis temporarily failed. Please retry.");
     }
-  };
+  };};
 
   const handleConfirmImport = () => {
     if (!importData) return;

@@ -56,7 +56,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
     setIsLoading(true);
     setError(null);
     try {
-      const data = await apiClient.getConversations(projectId || 'demo-project', searchQuery);
+      const data = await apiClient.getConversations(projectId || '', searchQuery);
       setConversations(data || []);
     } catch (err: any) {
       console.error('❌ Failed to fetch history:', err);

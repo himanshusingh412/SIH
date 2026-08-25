@@ -12,8 +12,8 @@ interface ExportModalProps {
 
 export const ExportModal: React.FC<ExportModalProps> = ({
   outputs,
-  projectId = 'demo-project',
-  projectTitle = 'SIH 2026 Transformation Project',
+  projectId = '',
+  projectTitle = 'ContentSpine Transformation Project',
   onClose,
 }) => {
   const [copied, setCopied] = useState(false);

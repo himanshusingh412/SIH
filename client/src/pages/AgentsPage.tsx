@@ -185,7 +185,7 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({
 
   const loadMostRecentConversation = async () => {
     try {
-      const list = await apiClient.getConversations(projectId || 'demo-project');
+      const list = await apiClient.getConversations(projectId);
       if (list && list.length > 0) {
         setConversationId(list[0].id);
         if (onConversationChange) onConversationChange(list[0].id);

@@ -283,7 +283,7 @@ export function App() {
             {/* Persistent History Route */}
             {route === 'history' && (
               <HistoryPage
-                projectId={projectData?.id || 'demo-project'}
+                projectId={projectData?.id || ''}
                 onOpenConversation={(convId) => {
                   setActiveConversationId(convId);
                   setRoute('agents');
@@ -298,7 +298,7 @@ export function App() {
             {/* AI Agents Route */}
             {route === 'agents' && (
               <AgentsPage
-                projectId={projectData?.id || 'demo-project'}
+                projectId={projectData?.id || ''}
                 spine={spineData}
                 selectedProvider={selectedProvider}
                 activeConversationId={activeConversationId}
