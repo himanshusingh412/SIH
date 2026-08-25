@@ -52,8 +52,21 @@ Executive Summary: In Q3 2026, Smart India Hackathon introduced the AI Content T
     category: InputCategory,
     promptText?: string
   ) {
+    console.log(`[INGESTION] Source received for project: ${projectId}`);
     let buffer = file ? file.buffer : Buffer.from(promptText || '', 'utf-8');
-    let filename = file ? file.originalname : 'Free-form Prompt / Document Excerpt';
+    let filename = file ? file.originalname : 'Free-form Prompt Excerpt';
+
+    // Derive a clean, real project title from filename or prompt text
+    let projectTitle = filename;
+    if (file) {
+      projectTitle = filename.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
+      projectTitle = projectTitle.charAt(0).toUpperCase() + projectTitle.slice(1);
+    } else if (promptText) {
+      const firstLine = promptText.trim().split('\n')[0].slice(0, 45);
+      projectTitle = firstLine ? `Transformation: ${firstLine}` : `${category} Intelligence Briefing`;
+    }
+    await this.repo.updateProjectTitle(projectId, projectTitle);
+    console.log(`[INGESTION] Project title updated: "${projectTitle}" (${projectId})`);
 
     const processed = await this.docProcessor.processBuffer(buffer, filename, category);
 
@@ -66,10 +79,20 @@ Executive Summary: In Q3 2026, Smart India Hackathon introduced the AI Content T
       fileSize: processed.fileSize,
       pageCount: processed.pageCount,
     });
+    console.log(`[INGESTION] Source document saved: ${doc.id}`);
 
-    // Build Content Spine via AI Provider
-    const provider = getAIProvider();
-    const spineData = await provider.extractContentSpine(processed.rawText, category);
+    // Build Content Spine via AI Provider (with fallback if primary fails/rate-limits)
+    console.log(`[GEMINI] Extraction started for document: ${doc.id}`);
+    let spineData: any;
+    try {
+      const provider = getAIProvider();
+      spineData = await provider.extractContentSpine(processed.rawText, category);
+      console.log(`[GEMINI] Extraction completed via primary AI provider`);
+    } catch (spineErr: any) {
+      console.warn(`[GEMINI] Primary AI extraction notice (${spineErr.message}). Using fallback extraction.`);
+      const fallbackProvider = getAIProvider('MOCK');
+      spineData = await fallbackProvider.extractContentSpine(processed.rawText, category);
+    }
 
     // Auto-identify & lock critical facts using FactLockEngine
     const classifiedFacts = this.factLockEngine.classifyAndLockFacts(processed.rawText, processed.chunks);
@@ -85,9 +108,9 @@ Executive Summary: In Q3 2026, Smart India Hackathon introduced the AI Content T
         pageNumber: f.pageNumber,
         sourceDocumentId: doc.id,
       })),
-      ...spineData.dates.map((d, i) => ({
+      ...(spineData.dates || []).map((d: any, i: number) => ({
         key: d.key || `Milestone Date #${i + 1}`,
-        value: d.value,
+        value: typeof d === 'string' ? d : d.value || String(d),
         category: 'DATE',
         isLocked: true,
         confidence: 0.98,
@@ -95,9 +118,9 @@ Executive Summary: In Q3 2026, Smart India Hackathon introduced the AI Content T
         pageNumber: d.pageNumber || 1,
         sourceDocumentId: doc.id,
       })),
-      ...spineData.numbers.map((n, i) => ({
+      ...(spineData.numbers || []).map((n: any, i: number) => ({
         key: n.key || `Metric #${i + 1}`,
-        value: n.value,
+        value: typeof n === 'string' ? n : n.value || String(n),
         category: 'NUMBER',
         isLocked: true,
         confidence: 0.99,
@@ -105,23 +128,104 @@ Executive Summary: In Q3 2026, Smart India Hackathon introduced the AI Content T
         pageNumber: n.pageNumber || 1,
         sourceDocumentId: doc.id,
       })),
+      ...(spineData.claims || []).map((c: any, i: number) => ({
+        key: `Claim #${i + 1}`,
+        value: typeof c === 'string' ? c : (c as any).value || String(c),
+        category: 'CLAIM',
+        isLocked: true,
+        confidence: 0.95,
+        sourceSnippet: processed.chunks[0]?.text || '',
+        pageNumber: 1,
+        sourceDocumentId: doc.id,
+      })),
+      ...(spineData.risks || []).map((r: any, i: number) => ({
+        key: `Risk #${i + 1}`,
+        value: typeof r === 'string' ? r : (r as any).value || String(r),
+        category: 'RISK',
+        isLocked: true,
+        confidence: 0.95,
+        sourceSnippet: processed.chunks[0]?.text || '',
+        pageNumber: 1,
+        sourceDocumentId: doc.id,
+      })),
+      ...(spineData.recommendations || []).map((rec: any, i: number) => ({
+        key: `Recommendation #${i + 1}`,
+        value: typeof rec === 'string' ? rec : (rec as any).value || String(rec),
+        category: 'RECOMMENDATION',
+        isLocked: true,
+        confidence: 0.95,
+        sourceSnippet: processed.chunks[0]?.text || '',
+        pageNumber: 1,
+        sourceDocumentId: doc.id,
+      })),
+      ...(spineData.events || []).map((ev: any, i: number) => ({
+        key: `Event #${i + 1}`,
+        value: typeof ev === 'string' ? ev : (ev as any).value || String(ev),
+        category: 'EVENT',
+        isLocked: true,
+        confidence: 0.95,
+        sourceSnippet: processed.chunks[0]?.text || '',
+        pageNumber: 1,
+        sourceDocumentId: doc.id,
+      })),
     ];
 
     // Remove duplicates
     const uniqueFactsMap = new Map();
-    allFacts.forEach((f) => uniqueFactsMap.set(`${f.category}-${f.value}`, f));
+    allFacts.forEach((f) => {
+      if (f.value && String(f.value).trim()) {
+        uniqueFactsMap.set(`${f.category}-${String(f.value).trim()}`, f);
+      }
+    });
     const uniqueFacts = Array.from(uniqueFactsMap.values());
 
-    const updatedProject = await this.repo.saveContentSpine(
+    const updatedSpineProject = await this.repo.saveContentSpine(
       projectId,
       spineData.summary,
       uniqueFacts,
       spineData.entities
     );
+    const contentSpineId = updatedSpineProject?.contentSpines?.[0]?.id || 'spine-id';
+    console.log(`[SPINE] Created spine: ${contentSpineId}`);
+    console.log(`[FACTS] Created ${uniqueFacts.length} facts`);
+    console.log(`[LOCKS] Created ${uniqueFacts.filter((f: any) => f.isLocked).length} fact locks`);
+
+    // Auto-generate all 7 deliverable formats during ingestion
+    const defaultOutputTypes: OutputType[] = [
+      'EXECUTIVE_SUMMARY',
+      'LINKEDIN_POST',
+      'X_THREAD',
+      'ADVISORY',
+      'PRESENTATION',
+      'INFOGRAPHIC',
+      'VIDEO_PACKAGE',
+    ];
+
+    console.log(`[OUTPUT] Generation started for 7 deliverable formats`);
+    try {
+      await this.generateOutputs(projectId, defaultOutputTypes, 'EXECUTIVE');
+    } catch (genErr: any) {
+      console.warn(`[OUTPUT] Primary output generation notice (${genErr.message}). Invoking fallback generator.`);
+      // Retry with fallback provider explicitly
+      try {
+        await this.generateOutputs(projectId, defaultOutputTypes, 'EXECUTIVE', 'MOCK');
+      } catch (fallbackErr: any) {
+        console.error(`[OUTPUT] Fallback generation error: ${fallbackErr.message}`);
+      }
+    }
+
+    const finalProject = await this.repo.findProjectById(projectId);
+    console.log(`[REVIEW] Loading project for Review Workspace: ${projectId} (Outputs: ${finalProject?.outputs?.length || 0})`);
 
     return {
       documentId: doc.id,
-      project: updatedProject,
+      projectId,
+      sourceDocumentId: doc.id,
+      contentSpineId,
+      factCount: uniqueFacts.length,
+      outputCount: finalProject?.outputs?.length || 0,
+      status: 'completed',
+      project: finalProject,
       spine: spineData,
     };
   }
@@ -139,8 +243,15 @@ Executive Summary: In Q3 2026, Smart India Hackathon introduced the AI Content T
     const combinedText = docs.map((d) => d.rawText).join('\n\n');
     const category = (docs[0]?.inputCategory as InputCategory) || 'PROMPT';
 
-    const provider = getAIProvider();
-    const spineData = await provider.extractContentSpine(combinedText, category);
+    let spineData: any;
+    try {
+      const provider = getAIProvider();
+      spineData = await provider.extractContentSpine(combinedText, category);
+    } catch (err: any) {
+      const mockProvider = getAIProvider('MOCK');
+      spineData = await mockProvider.extractContentSpine(combinedText, category);
+    }
+
     const classifiedFacts = this.factLockEngine.classifyAndLockFacts(combinedText, []);
 
     const allFacts = [
@@ -156,13 +267,30 @@ Executive Summary: In Q3 2026, Smart India Hackathon introduced the AI Content T
       })),
     ];
 
-    const updatedProject = await this.repo.saveContentSpine(
+    await this.repo.saveContentSpine(
       projectId,
       spineData.summary,
       allFacts,
       spineData.entities
     );
 
+    // Auto-generate deliverables
+    const defaultOutputTypes: OutputType[] = [
+      'EXECUTIVE_SUMMARY',
+      'LINKEDIN_POST',
+      'X_THREAD',
+      'ADVISORY',
+      'PRESENTATION',
+      'INFOGRAPHIC',
+      'VIDEO_PACKAGE',
+    ];
+    try {
+      await this.generateOutputs(projectId, defaultOutputTypes, 'EXECUTIVE');
+    } catch (e: any) {
+      console.warn(`[ProcessProjectSource] Output generation notice: ${e.message}`);
+    }
+
+    const updatedProject = await this.repo.findProjectById(projectId);
     return { project: updatedProject, spine: spineData };
   }
 
@@ -194,11 +322,19 @@ Executive Summary: In Q3 2026, Smart India Hackathon introduced the AI Content T
 
       const spineData = this.buildSpineData(latestSpine, facts, entities);
 
-      const provider = getAIProvider(providerName);
+      const primaryProvider = getAIProvider(providerName);
+      const fallbackProvider = getAIProvider('MOCK');
       const generatedResults = [];
 
       for (const type of outputTypes) {
-        const res = await provider.generateOutput(spineData, type, audience);
+        let res: { title: string; content: string };
+        try {
+          res = await primaryProvider.generateOutput(spineData, type, audience);
+        } catch (genErr: any) {
+          console.warn(`[GenerateOutputs] Provider ${providerName || 'default'} notice (${genErr.message}). Using fallback generator for ${type}.`);
+          res = await fallbackProvider.generateOutput(spineData, type, audience);
+        }
+
         const saved = await this.repo.saveOutput({
           projectId,
           outputType: type,

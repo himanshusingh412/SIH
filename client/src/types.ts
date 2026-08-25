@@ -68,6 +68,7 @@ export interface ContentSpineData {
   claims: string[];
   relationships: Array<{ subject: string; relation: string; object: string }>;
   factLocks: FactItem[];
+  sourceDocument?: any;
 }
 
 export interface GeneratedOutput {

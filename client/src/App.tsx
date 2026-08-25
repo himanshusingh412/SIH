@@ -19,7 +19,15 @@ import { useProject } from './hooks/useProject';
 import type { AudienceProfile, InputCategory, OutputType } from './types';
 
 export function App() {
-  const [route, setRoute] = useState<string>('dashboard');
+  const [route, setRouteState] = useState<string>(() => {
+    return localStorage.getItem('sih_active_route') || 'dashboard';
+  });
+
+  const setRoute = (r: string) => {
+    setRouteState(r);
+    localStorage.setItem('sih_active_route', r);
+  };
+
   const [selectedProvider, setSelectedProvider] = useState<string>('gemini');
   const [activeConversationId, setActiveConversationId] = useState<string | undefined>(undefined);
   const [showExportModal, setShowExportModal] = useState<boolean>(false);
@@ -40,6 +48,7 @@ export function App() {
     error,
     setError,
     loadDemo,
+    loadProject,
     ingestDoc,
     toggleLock,
     generate,
@@ -48,7 +57,7 @@ export function App() {
     injectErrors,
   } = useProject();
 
-  // Initial load
+  // Initial load: restore active project from Neon PostgreSQL if ID saved in URL or localStorage
   useEffect(() => {
     import('./services/apiClient').then(({ apiClient }) => {
       apiClient.checkHealth().then((data) => {
@@ -57,12 +66,34 @@ export function App() {
         }
       }).catch(() => {});
     });
-    handleLoadDemo();
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlProjectId = urlParams.get('projectId');
+    const savedId = urlProjectId || localStorage.getItem('sih_active_project_id');
+
+    if (savedId) {
+      loadProject(savedId).then((project) => {
+        if (project) {
+          const storedRoute = localStorage.getItem('sih_active_route');
+          const targetRoute = (storedRoute && storedRoute !== 'processing' && storedRoute !== 'spine') ? storedRoute : 'workspace';
+          setRoute(targetRoute);
+        } else {
+          handleLoadDemo();
+        }
+      }).catch(() => {
+        handleLoadDemo();
+      });
+    } else {
+      handleLoadDemo();
+    }
   }, []);
 
   const handleLoadDemo = async () => {
     const res = await loadDemo();
-    if (res) {
+    if (res && res.projectId) {
+      const url = new URL(window.location.href);
+      url.searchParams.set('projectId', res.projectId);
+      window.history.replaceState({}, '', url.toString());
       setRoute('workspace');
     }
   };
@@ -70,13 +101,21 @@ export function App() {
   const handleIngestSubmit = async (category: InputCategory, file: File | null, rawText: string) => {
     setRoute('processing');
     const res = await ingestDoc(category, file, rawText);
-    if (!res) {
+    const pId = (res as any)?.projectId || (res as any)?.project?.id;
+    if (res && pId) {
+      const url = new URL(window.location.href);
+      url.searchParams.set('projectId', pId);
+      window.history.pushState({}, '', url.toString());
+      localStorage.setItem('sih_active_project_id', pId);
+      localStorage.setItem('sih_active_route', 'workspace');
+      setRoute('workspace');
+    } else {
       setRoute('new-transformation');
     }
   };
 
   const handleProcessingComplete = () => {
-    setRoute('spine');
+    setRoute('workspace');
   };
 
   const handleConfigSubmit = async (
@@ -119,28 +158,25 @@ export function App() {
             sourceSnippet: f.references?.[0]?.snippetText || '',
             pageNumber: f.references?.[0]?.pageNumber || 1,
           })),
-        locations: [],
-        events: [
-          'Source Document Ingestion & Layout Parsing',
-          'Fact Lock Layer Verification & Extraction',
-          'Multi-Channel Deliverable Generation',
-        ],
-        risks: [
-          'Fact drift occurring when generating multiple outputs independently',
-          'Lack of source traceability in standard zero-shot LLM prompts',
-        ],
-        recommendations: [
-          'Establish Content Spine as single immutable source of truth',
-          'Enforce Fact Locking on critical dates, metrics & numbers',
-        ],
-        claims: ['Content Spine architecture eliminates fact drift across all 7 deliverables.'],
-        relationships: [
-          {
-            subject: 'Content Spine',
-            relation: 'serves as Single Source of Truth for',
-            object: 'Output Generators',
-          },
-        ],
+        locations: (projectData.contentSpines[0].facts || [])
+          .filter((f: any) => f.category === 'LOCATION')
+          .map((f: any) => f.factValue),
+        events: (projectData.contentSpines[0].facts || [])
+          .filter((f: any) => f.category === 'EVENT' || f.category === 'TIMELINE')
+          .map((f: any) => f.factValue),
+        risks: (projectData.contentSpines[0].facts || [])
+          .filter((f: any) => f.category === 'RISK')
+          .map((f: any) => f.factValue),
+        recommendations: (projectData.contentSpines[0].facts || [])
+          .filter((f: any) => f.category === 'RECOMMENDATION')
+          .map((f: any) => f.factValue),
+        claims: (projectData.contentSpines[0].facts || [])
+          .filter((f: any) => f.category === 'CLAIM')
+          .map((f: any) => f.factValue),
+        systemsAffected: (projectData.contentSpines[0].facts || [])
+          .filter((f: any) => f.category === 'SYSTEM' || f.category === 'TECHNOLOGY')
+          .map((f: any) => f.factValue),
+        relationships: [],
         factLocks: (projectData.contentSpines[0].facts || []).map((f: any) => ({
           id: f.id,
           key: f.factKey,
@@ -150,6 +186,7 @@ export function App() {
           sourceSnippet: f.references?.[0]?.snippetText || '',
           pageNumber: f.references?.[0]?.pageNumber || 1,
         })),
+        sourceDocument: projectData.sourceDocuments?.[0] || null,
       }
     : null;
 
@@ -293,11 +330,19 @@ export function App() {
             )}
 
             {/* Screen 4: Content Spine */}
-            {route === 'spine' && spineData && (
+            {route === 'spine' && (
               <ContentSpineViewer
                 spine={spineData}
+                isLoading={isLoading}
+                error={error}
+                projectTitle={projectData?.title}
+                sourceDocument={projectData?.sourceDocuments?.[0]}
                 onToggleLock={(id, isLocked) => toggleLock(id, isLocked)}
                 onNext={() => setRoute('config')}
+                onStartNew={() => setRoute('new-transformation')}
+                onRetry={() => {
+                  if (projectData?.id) loadProject(projectData.id);
+                }}
               />
             )}
 

@@ -149,12 +149,16 @@ export class ProjectRepository {
     });
 
     // Create Facts
-    for (const f of facts) {
+    for (const f of (facts || [])) {
+      const factKey = String(f.key || f.factKey || 'Extracted Fact').trim();
+      const factValue = String(f.value || f.factValue || '').trim();
+      if (!factValue) continue;
+
       const createdFact = await prisma.fact.create({
         data: {
           contentSpineId: spine.id,
-          factKey: f.key,
-          factValue: f.value,
+          factKey: factKey || 'Fact Anchor',
+          factValue,
           category: f.category || 'CLAIM',
           isLocked: f.isLocked !== undefined ? f.isLocked : true,
           confidence: f.confidence || 1.0,
@@ -166,7 +170,7 @@ export class ProjectRepository {
           data: {
             sourceDocumentId: f.sourceDocumentId,
             factId: createdFact.id,
-            snippetText: f.sourceSnippet,
+            snippetText: String(f.sourceSnippet),
             pageNumber: f.pageNumber || 1,
           },
         });
@@ -174,18 +178,32 @@ export class ProjectRepository {
     }
 
     // Create Entities
-    for (const e of entities) {
+    for (const e of (entities || [])) {
+      const entityName = typeof e === 'string' ? e.trim() : (e?.name || e?.value || String(e || '')).trim();
+      if (!entityName) continue;
+
+      const entityType = typeof e === 'string' ? 'ORGANIZATION' : (e?.type || 'ORGANIZATION');
+      const confidence = typeof e === 'number' ? e : (typeof e === 'object' && e?.confidence ? e.confidence : 1.0);
+
       await prisma.entity.create({
         data: {
           contentSpineId: spine.id,
-          name: e.name,
-          type: e.type || 'ORGANIZATION',
-          confidence: e.confidence || 1.0,
+          name: entityName,
+          type: entityType,
+          confidence: confidence,
         },
       });
     }
 
     return this.findProjectById(projectId);
+  }
+
+  async updateProjectTitle(projectId: string, title: string) {
+    await ensureDbSchema();
+    return prisma.project.update({
+      where: { id: projectId },
+      data: { title },
+    });
   }
 
   async toggleFactLock(factId: string, isLocked: boolean) {

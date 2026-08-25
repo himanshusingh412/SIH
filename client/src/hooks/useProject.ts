@@ -61,12 +61,26 @@ export function useProject() {
       setIsLoading(true);
       setError(null);
       try {
-        const createRes = await apiClient.createProject(`Ingested ${category} Project`);
+        let title = file ? file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ') : '';
+        if (!title && rawText) {
+          title = rawText.trim().split('\n')[0].slice(0, 45);
+        }
+        if (!title) {
+          title = `${category} Intelligence Briefing`;
+        }
+
+        const createRes = await apiClient.createProject({
+          title,
+          category,
+          contentText: rawText,
+        });
         const pId = createRes.project.id;
-        updateActiveProjectId(pId);
 
         const ingestRes = await apiClient.ingestDocument(pId, category, file, rawText);
-        setProjectData(ingestRes.project);
+        updateActiveProjectId(pId);
+        if (ingestRes && ingestRes.project) {
+          setProjectData(ingestRes.project);
+        }
         return ingestRes;
       } catch (err: any) {
         setError(err.message || 'Failed to ingest document');
@@ -169,6 +183,26 @@ export function useProject() {
     [projectId]
   );
 
+  const loadProject = useCallback(async (id: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await apiClient.getProject(id);
+      if (res && res.project) {
+        updateActiveProjectId(id);
+        setProjectData(res.project);
+        return res.project;
+      } else {
+        throw new Error('Project not found');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to load project');
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   return {
     projectId,
     projectData,
@@ -176,6 +210,7 @@ export function useProject() {
     error,
     setError,
     loadDemo,
+    loadProject,
     ingestDoc,
     toggleLock,
     generate,

@@ -17,6 +17,26 @@ export class GeminiProvider implements AIProviderInstance {
     return config.aiModel || 'gemini-3.1-flash-lite';
   }
 
+  private async generateWithRetry(model: any, prompt: string, maxRetries = 3): Promise<any> {
+    let lastError: any;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await model.generateContent(prompt);
+      } catch (err: any) {
+        lastError = err;
+        const rateInfo = parseGeminiError(err);
+        if (rateInfo.isRateLimited && attempt < maxRetries) {
+          const backoffMs = (rateInfo.retryAfterSeconds > 0 && rateInfo.retryAfterSeconds <= 10 ? rateInfo.retryAfterSeconds : Math.pow(2, attempt)) * 1000;
+          console.warn(`[GeminiProvider] Rate limited (429). Retrying in ${backoffMs}ms (Attempt ${attempt}/${maxRetries})...`);
+          await new Promise((resolve) => setTimeout(resolve, Math.min(backoffMs, 3000)));
+        } else {
+          throw err;
+        }
+      }
+    }
+    throw lastError;
+  }
+
   /**
    * Health/Connectivity Test (Fired ONLY when user explicitly tests provider)
    */
@@ -35,7 +55,7 @@ export class GeminiProvider implements AIProviderInstance {
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ model: this.getModelName() });
-      await model.generateContent('ping');
+      await this.generateWithRetry(model, 'ping', 1);
       providerHealthTracker.recordSuccess('gemini');
       return {
         success: true,
@@ -73,7 +93,7 @@ export class GeminiProvider implements AIProviderInstance {
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ model: this.getModelName() });
-      const result = await model.generateContent(prompt);
+      const result = await this.generateWithRetry(model, prompt);
       const text = result.response.text();
       if (!text) {
         throw new Error('Gemini returned an empty text response.');
@@ -108,32 +128,50 @@ export class GeminiProvider implements AIProviderInstance {
 Return ONLY valid JSON matching this schema:
 {
   "summary": "High-level executive summary...",
-  "entities": [{ "id": "e1", "name": "...", "type": "ORGANIZATION", "confidence": 0.95, "sourceReference": "p. 1" }],
-  "dates": [{ "id": "f1", "key": "Date", "value": "2026-08-24", "category": "DATE", "isLocked": true, "sourceSnippet": "2026-08-24" }],
-  "numbers": [{ "id": "f2", "key": "Affected Systems", "value": "11", "category": "NUMBER", "isLocked": true, "sourceSnippet": "11 systems" }],
-  "locations": [],
-  "events": [],
-  "risks": ["Risk assessment point"],
-  "recommendations": ["Recommendation point"],
-  "claims": [],
-  "relationships": [],
+  "entities": [{ "id": "e1", "name": "...", "type": "ORGANIZATION", "confidence": 0.95 }],
+  "dates": [{ "id": "f1", "key": "Date Key", "value": "2026-08-24", "category": "DATE", "isLocked": true, "sourceSnippet": "..." }],
+  "numbers": [{ "id": "f2", "key": "Metric Key", "value": "11", "category": "NUMBER", "isLocked": true, "sourceSnippet": "..." }],
+  "events": ["Event or timeline point 1"],
+  "claims": ["Key factual claim 1"],
+  "systemsAffected": ["System or component 1"],
+  "risks": ["Risk assessment point 1"],
+  "recommendations": ["Core recommendation point 1"],
   "factLocks": []
 }
 
 Source Content (${category}):
-${rawText.slice(0, 5000)}`;
+${rawText.slice(0, 8000)}`;
 
-      const result = await model.generateContent(prompt);
+      const result = await this.generateWithRetry(model, prompt);
       const text = result.response.text();
       
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        if (parsed && parsed.summary) {
-          const lockedFacts = [...(parsed.dates || []), ...(parsed.numbers || [])].map((f) => ({ ...f, isLocked: true }));
+        let parsed: any;
+        try {
+          parsed = JSON.parse(jsonMatch[0]);
+        } catch (jsonErr) {
+          // Attempt 1 controlled repair (trailing commas, control chars)
+          const repaired = jsonMatch[0]
+            .replace(/,\s*([\]}])/g, '$1')
+            .replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
+          parsed = JSON.parse(repaired);
+        }
+
+        if (parsed && (parsed.summary || (parsed.dates && parsed.dates.length > 0) || (parsed.numbers && parsed.numbers.length > 0))) {
+          const lockedFacts = [
+            ...(parsed.dates || []),
+            ...(parsed.numbers || []),
+            ...(parsed.events || []).map((ev: string, idx: number) => ({ id: `ev-${idx}`, key: `Event #${idx + 1}`, value: ev, category: 'EVENT', isLocked: true })),
+            ...(parsed.claims || []).map((cl: string, idx: number) => ({ id: `cl-${idx}`, key: `Claim #${idx + 1}`, value: cl, category: 'CLAIM', isLocked: true })),
+            ...(parsed.risks || []).map((rk: string, idx: number) => ({ id: `rk-${idx}`, key: `Risk #${idx + 1}`, value: rk, category: 'RISK', isLocked: true })),
+            ...(parsed.recommendations || []).map((rc: string, idx: number) => ({ id: `rc-${idx}`, key: `Recommendation #${idx + 1}`, value: rc, category: 'RECOMMENDATION', isLocked: true })),
+            ...(parsed.systemsAffected || []).map((sys: string, idx: number) => ({ id: `sys-${idx}`, key: `System Affected #${idx + 1}`, value: sys, category: 'SYSTEM', isLocked: true })),
+          ].map((f) => ({ ...f, isLocked: true }));
+
           providerHealthTracker.recordSuccess('gemini');
           return {
-            summary: parsed.summary,
+            summary: parsed.summary || 'Structured Content Spine summary extracted.',
             entities: parsed.entities || [],
             dates: parsed.dates || [],
             numbers: parsed.numbers || [],
@@ -195,7 +233,7 @@ FORMATTING INSTRUCTIONS:
 - Return clear, professional, production-ready markdown content.
 - Do NOT add disclaimers or meta commentary.`;
 
-      const result = await model.generateContent(prompt);
+      const result = await this.generateWithRetry(model, prompt);
       const text = result.response.text();
       const formattedType = outputType
         .split('_')
@@ -230,3 +268,4 @@ FORMATTING INSTRUCTIONS:
     return [];
   }
 }
+

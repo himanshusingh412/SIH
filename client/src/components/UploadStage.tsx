@@ -25,17 +25,34 @@ export const UploadStage: React.FC<UploadStageProps> = ({ onIngest, isLoading, o
     { id: 'PROMPT',         label: 'Free-form Prompt',   icon: Sparkles },
   ];
 
+  const [validationError, setValidationError] = useState<string | null>(null);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file && !rawText.trim()) return;
+    setValidationError(null);
+    if (!file && !rawText.trim()) {
+      setValidationError('Please upload a file or paste source text.');
+      return;
+    }
+    if (file && file.size > 50 * 1024 * 1024) {
+      setValidationError('Source file exceeds maximum allowed size (50 MB).');
+      return;
+    }
     onIngest(category, file, rawText);
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
+    setValidationError(null);
     const dropped = e.dataTransfer.files[0];
-    if (dropped) setFile(dropped);
+    if (dropped) {
+      if (dropped.size > 50 * 1024 * 1024) {
+        setValidationError('Source file exceeds maximum allowed size (50 MB).');
+        return;
+      }
+      setFile(dropped);
+    }
   };
 
   return (
@@ -63,6 +80,23 @@ export const UploadStage: React.FC<UploadStageProps> = ({ onIngest, isLoading, o
           boxShadow: 'var(--shadow-md)',
         }}
       >
+        {validationError && (
+          <div
+            style={{
+              background: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              borderRadius: 'var(--radius-md)',
+              padding: '12px 16px',
+              marginBottom: '20px',
+              color: '#dc2626',
+              fontSize: 'var(--font-sm)',
+              fontWeight: 600,
+            }}
+          >
+            ⚠️ {validationError}
+          </div>
+        )}
+
         {/* Category grid */}
         <div style={{ marginBottom: '24px' }}>
           <label className="form-label">Input Category</label>
