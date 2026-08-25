@@ -11,10 +11,8 @@ import {
   ChevronRight,
   RotateCw,
   Download,
-  HelpCircle,
   AlertTriangle,
   Zap,
-  CheckCircle2,
 } from 'lucide-react';
 import type { ContentSpineData, GeneratedOutput, OutputType, ValidationReportData } from '../types';
 import { MarkdownRenderer } from './MarkdownRenderer';
@@ -615,6 +613,14 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
                   "{cleanPdfText(activeTraceability.snippet)}"
                 </div>
               </div>
+
+              <button
+                className="btn-secondary btn-sm"
+                onClick={() => handleInspectTraceability(currentOutput?.title || 'Deliverable Claim')}
+                style={{ width: '100%', justifyContent: 'center' }}
+              >
+                Inspect Fact Lineage
+              </button>
             </div>
           )}
 

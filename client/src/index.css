@@ -497,7 +497,7 @@ select.input {
 }
 
 /* ============================================================
-   MARKDOWN BODY (rendered rich text — no raw #/*/_ symbols)
+   MARKDOWN BODY (rendered rich text formatting)
    ============================================================ */
 .markdown-body {
   color: var(--text-primary);

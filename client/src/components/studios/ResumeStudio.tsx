@@ -7,7 +7,6 @@ import {
   History as HistoryIcon,
   Mail,
   BarChart3,
-  Download,
   Check,
   ShieldCheck,
   Plus,

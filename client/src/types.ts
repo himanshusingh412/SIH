@@ -102,6 +102,8 @@ export interface ValidationReportData {
   autoCorrected: boolean;
   humanReviewRequired?: boolean;
   verifiedAt: string;
+  summary?: string;
+  errors?: Array<{ deliverableType: string; claimKey?: string; foundValue?: string; expectedValue?: string }>;
 }
 
 export interface ProjectData {

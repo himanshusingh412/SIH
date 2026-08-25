@@ -625,7 +625,7 @@ export const AgentsPage: React.FC<AgentsPageProps> = ({
     rateLimit: typeof rateLimitInfo,
     onRegenerate: () => void,
     onCopy: (id: string, text: string) => void,
-    scrollRef: React.RefObject<HTMLDivElement>
+    scrollRef: React.RefObject<HTMLDivElement | null>
   ) => (
     <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px', paddingRight: '6px' }}>
       {msgs.map((m) => (

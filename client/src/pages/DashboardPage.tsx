@@ -6,10 +6,7 @@ import {
   ShieldCheck,
   Zap,
   ArrowRight,
-  TrendingUp,
   FileText,
-  Database,
-  Cpu,
   Lock,
 } from 'lucide-react';
 import { apiClient } from '../services/apiClient';

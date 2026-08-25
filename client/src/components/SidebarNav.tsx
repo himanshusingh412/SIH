@@ -20,13 +20,6 @@ interface SidebarNavProps {
   activeProjectTitle?: string;
 }
 
-const GROUP_LABELS: Record<string, string> = {
-  'new-transformation': 'CREATE',
-  dashboard: 'WORKSPACE',
-  'resume-studio': 'INTELLIGENCE',
-  history: 'HISTORY',
-  settings: 'SYSTEM',
-};
 
 const navGroups = [
   {

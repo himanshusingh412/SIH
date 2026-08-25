@@ -6,7 +6,6 @@ import {
   ShieldCheck,
   Eye,
   EyeOff,
-  Globe,
   Download,
   Bell,
 } from 'lucide-react';
