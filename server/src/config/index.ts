@@ -27,6 +27,24 @@ export const config = {
   geminiApiKey: process.env.AI_API_KEY || process.env.GEMINI_API_KEY || '',
 };
 
+// Recursively sanitize all strings to strip PostgreSQL 0x00 / NUL bytes (Error 22021)
+export function removeNullBytes<T>(obj: T): T {
+  if (typeof obj === 'string') {
+    return obj.replace(/[\0\u0000]/g, '') as unknown as T;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(removeNullBytes) as unknown as T;
+  }
+  if (obj !== null && typeof obj === 'object') {
+    const res: Record<string, any> = {};
+    for (const key of Object.keys(obj)) {
+      res[key] = removeNullBytes((obj as Record<string, any>)[key]);
+    }
+    return res as T;
+  }
+  return obj;
+}
+
 // Singleton PrismaClient reuse for serverless connection safety (Requirement 28)
 const globalForPrisma = global as unknown as { prisma?: PrismaClient };
 
@@ -43,6 +61,24 @@ export const prisma =
         }
       : undefined
   );
+
+prisma.$use(async (params, next) => {
+  if (params.args) {
+    if (params.args.data) {
+      params.args.data = removeNullBytes(params.args.data);
+    }
+    if (params.args.where) {
+      params.args.where = removeNullBytes(params.args.where);
+    }
+    if (params.args.create) {
+      params.args.create = removeNullBytes(params.args.create);
+    }
+    if (params.args.update) {
+      params.args.update = removeNullBytes(params.args.update);
+    }
+  }
+  return next(params);
+});
 
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma;

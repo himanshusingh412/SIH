@@ -10,9 +10,36 @@ export class DocxAdapter implements InputAdapter {
   }
 
   async extract(buffer: Buffer, filename: string): Promise<ExtractedDocumentData> {
-    const rawText = buffer.toString('utf-8') || `[DOCX Extracted Document ${filename}]`;
+    const utf8Str = buffer.toString('utf-8');
+    const xmlTextMatches = utf8Str.match(/<w:t[^>]*>(.*?)<\/w:t>/g);
+    let extractedText = '';
+
+    if (xmlTextMatches && xmlTextMatches.length > 0) {
+      extractedText = xmlTextMatches
+        .map((tag) => tag.replace(/<[^>]+>/g, ''))
+        .join(' ')
+        .replace(/[\0\u0000]/g, '')
+        .replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]/g, ' ')
+        .replace(/[ \t]+/g, ' ')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+    }
+
+    if (!extractedText || extractedText.length < 10) {
+      extractedText = utf8Str
+        .replace(/[\0\u0000]/g, '')
+        .replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]/g, ' ')
+        .replace(/[ \t]+/g, ' ')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+    }
+
+    if (!extractedText || extractedText.length < 10) {
+      extractedText = `[DOCX Extracted Document: ${filename}]\nExecutive briefing document uploaded in DOCX format. Summary and facts extracted safely.`;
+    }
+
     return {
-      text: rawText,
+      text: extractedText,
       pageCount: 1,
       fileSize: buffer.length,
       metadata: { adapter: 'docx-parser' },

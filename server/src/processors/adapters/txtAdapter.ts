@@ -6,6 +6,10 @@ export class TxtAdapter implements InputAdapter {
 
   canHandle(category: InputCategory, filename: string): boolean {
     const ext = filename.split('.').pop()?.toLowerCase();
+    // Exclude binary formats so specialized adapters (PdfAdapter, DocxAdapter, ImageAdapter) take precedence
+    if (['pdf', 'docx', 'doc', 'png', 'jpg', 'jpeg', 'webp', 'tiff', 'bmp'].includes(ext || '')) {
+      return false;
+    }
     return (
       category === 'PROMPT' ||
       category === 'REPORT' ||
@@ -18,7 +22,7 @@ export class TxtAdapter implements InputAdapter {
   }
 
   async extract(buffer: Buffer, _filename: string): Promise<ExtractedDocumentData> {
-    const text = buffer.toString('utf-8');
+    const text = buffer.toString('utf-8').replace(/[\0\u0000]/g, '');
     const estimatedPages = Math.max(1, Math.ceil(text.length / 2500));
     return {
       text,
