@@ -4,6 +4,7 @@ import { GeminiProvider } from '../ai/providers/geminiProvider';
 import { OpenAIProvider } from '../ai/providers/openAIProvider';
 import { MockProvider } from '../ai/providers/mockProvider';
 import { getAIProvider } from '../ai/provider';
+import { AIProviderManager } from '../ai/providerManager';
 import { sendSuccess, sendError } from '../utils/response';
 import { formatValidator } from '../engine/formatEngine/formatValidator';
 import { providerHealthTracker } from '../services/providerHealthService';
@@ -205,9 +206,8 @@ export const generateAIOutput = async (req: Request, res: Response): Promise<voi
       spineData = await mockInst.extractContentSpine(summaryText, 'PROMPT');
     }
 
-    // Select provider and generate deliverable
-    const aiInstance = getAIProvider(normProvider);
-    const generated = await aiInstance.generateOutput(spineData, outputType, audience);
+    // Select provider and generate deliverable with AIProviderManager Fallback Chain
+    const generated = await AIProviderManager.generateOutput(spineData, outputType, audience, normProvider);
 
     const lockedFacts = (spineData.factLocks || []).map((f: any) => ({
       key: f.key || f.factKey,

@@ -18,6 +18,7 @@ import type { ContentSpineData, GeneratedOutput, OutputType, ValidationReportDat
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { cleanPdfText } from '../utils/pdfSanitizer';
 import { BrandLogo, type BrandName } from './BrandLogo';
+import { AIProviderStatusBadge } from './AIProviderStatusBadge';
 
 interface FormatItem {
   type: OutputType;
@@ -325,7 +326,8 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
           </h1>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <AIProviderStatusBadge />
           {/* Validation Summary */}
           <div
             role="region"

@@ -1,4 +1,5 @@
 import { getAIProvider } from '../ai/provider';
+import { AIProviderManager } from '../ai/providerManager';
 import { DocumentProcessor } from '../processors/documentProcessor';
 import { ProjectRepository } from '../repositories/projectRepository';
 import { AudienceProfile, InputCategory, OutputType } from '../types';
@@ -81,18 +82,13 @@ Executive Summary: In Q3 2026, Smart India Hackathon introduced the AI Content T
     });
     console.log(`[INGESTION] Source document saved: ${doc.id}`);
 
-    // Build Content Spine via AI Provider (with fallback if primary fails/rate-limits)
+    // Build Content Spine via AI Provider Manager (Fallback Chain & Circuit Breaker)
     console.log(`[GEMINI] Extraction started for document: ${doc.id}`);
-    let spineData: any;
-    try {
-      const provider = getAIProvider();
-      spineData = await provider.extractContentSpine(processed.rawText, category);
-      console.log(`[GEMINI] Extraction completed via primary AI provider`);
-    } catch (spineErr: any) {
-      console.warn(`[GEMINI] Primary AI extraction notice (${spineErr.message}). Using fallback extraction.`);
-      const fallbackProvider = getAIProvider('MOCK');
-      spineData = await fallbackProvider.extractContentSpine(processed.rawText, category);
-    }
+    const { spine: spineData, provider: usedProvider, model: usedModel } = await AIProviderManager.extractContentSpine(
+      processed.rawText,
+      category
+    );
+    console.log(`[GEMINI] Extraction completed via provider '${usedProvider}' (${usedModel})`);
 
     // Auto-identify & lock critical facts using FactLockEngine
     const classifiedFacts = this.factLockEngine.classifyAndLockFacts(processed.rawText, processed.chunks);
@@ -322,27 +318,21 @@ Executive Summary: In Q3 2026, Smart India Hackathon introduced the AI Content T
 
       const spineData = this.buildSpineData(latestSpine, facts, entities);
 
-      const primaryProvider = getAIProvider(providerName);
-      const fallbackProvider = getAIProvider('MOCK');
       const generatedResults = [];
 
       for (const type of outputTypes) {
-        let res: { title: string; content: string };
-        try {
-          res = await primaryProvider.generateOutput(spineData, type, audience);
-        } catch (genErr: any) {
-          console.warn(`[GenerateOutputs] Provider ${providerName || 'default'} notice (${genErr.message}). Using fallback generator for ${type}.`);
-          res = await fallbackProvider.generateOutput(spineData, type, audience);
-        }
+        console.log(`[OUTPUT] Generating deliverable ${type} via AIProviderManager...`);
+        const res = await AIProviderManager.generateOutput(spineData, type, audience, providerName);
 
         const saved = await this.repo.saveOutput({
           projectId,
           outputType: type,
           audienceProfileName: audience,
-          title: res.title,
+          title: res.title || `${type} Deliverable`,
           content: res.content,
         });
         generatedResults.push(saved);
+        console.log(`[OUTPUT] Saved deliverable ${type} to Neon PostgreSQL (ID: ${saved.id}, Provider: ${res.provider})`);
       }
 
       const valResult = await this.validateProjectOutputs(projectId);
