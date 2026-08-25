@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   FileText,
   ShieldAlert,
@@ -46,7 +46,7 @@ interface ReviewWorkspace3PaneProps {
 
 export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
   projectTitle,
-  outputs,
+  outputs = [],
   spine,
   validationReport,
   onAutoCorrect,
@@ -60,42 +60,6 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
   const [activeSlideIndex, setActiveSlideIndex] = useState<number>(0);
   const [copied, setCopied] = useState<boolean>(false);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState<boolean>(false);
-
-  const [activeTraceability, setActiveTraceability] = useState<{
-    statement: string;
-    factKey: string;
-    factValue: string;
-    category: string;
-    sourceDoc: string;
-    page: number;
-    section: string;
-    snippet: string;
-  }>({
-    statement: 'Executive Summary Briefing Statement',
-    factKey: 'Target Milestone Date',
-    factValue: '2026-08-24',
-    category: 'DATE',
-    sourceDoc: projectTitle ? `${projectTitle} Document` : 'Ingested Source Document',
-    page: 1,
-    section: 'Content Spine & Fact Lock Layer',
-    snippet: 'Ingested source document verifies milestone target date and system consistency metrics.',
-  });
-
-  React.useEffect(() => {
-    if (spine?.factLocks && spine.factLocks.length > 0) {
-      const firstFact = spine.factLocks[0];
-      setActiveTraceability({
-        statement: currentOutput?.title || `${firstFact.key} Verification`,
-        factKey: firstFact.key,
-        factValue: firstFact.value,
-        category: firstFact.category || 'DATE',
-        sourceDoc: projectTitle ? `${projectTitle} Document` : (spine.sourceDocument?.filename || 'Ingested Source Document'),
-        page: firstFact.pageNumber || 1,
-        section: 'Content Spine & Fact Lock Layer',
-        snippet: firstFact.sourceSnippet || `${firstFact.key}: ${firstFact.value}`,
-      });
-    }
-  }, [spine, projectTitle]);
 
   const formats: FormatItem[] = [
     {
@@ -156,11 +120,34 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
     },
   ];
 
-  const currentOutput = outputs.find((o) => o.outputType === selectedType) || outputs[0];
+  // 1. Strict derivation of current selected format and output (NO fallback to outputs[0])
+  const currentFormatItem = formats.find((f) => f.type === selectedType) || formats[0];
+  const currentOutput = outputs.find((o) => o.outputType === selectedType);
+  const currentContent = currentOutput && currentOutput.content && currentOutput.content.trim().length > 0
+    ? currentOutput.content
+    : null;
+
+  // Reset slide index when switching deliverable tabs
+  useEffect(() => {
+    setActiveSlideIndex(0);
+  }, [selectedType]);
+
+  // 2. Traceability state strictly derived from selected deliverable
+  const firstFact = spine?.factLocks && spine.factLocks.length > 0 ? spine.factLocks[0] : null;
+  const currentTraceability = {
+    statement: currentOutput?.title || `${currentFormatItem.label} Briefing Statement`,
+    factKey: firstFact?.key || 'Target Milestone Date',
+    factValue: firstFact?.value || '2026-08-24',
+    category: firstFact?.category || 'DATE',
+    sourceDoc: projectTitle ? `${projectTitle} Document` : (spine?.sourceDocument?.filename || 'Ingested Source Document'),
+    page: firstFact?.pageNumber || 1,
+    section: 'Content Spine & Fact Lock Layer',
+    snippet: firstFact?.sourceSnippet || (firstFact ? `${firstFact.key}: ${firstFact.value}` : 'Ingested source document verifies milestone target date and system consistency metrics.'),
+  };
 
   const handleCopy = () => {
-    if (currentOutput?.content) {
-      navigator.clipboard.writeText(currentOutput.content);
+    if (currentContent) {
+      navigator.clipboard.writeText(currentContent);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
@@ -170,32 +157,13 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
     try { return JSON.parse(str); } catch { return null; }
   };
 
-  const [showLineageModal, setShowLineageModal] = useState<boolean>(false);
-
-  const handleInspectTraceability = (statement: string, factKey?: string, factValue?: string) => {
-    const fact = spine?.factLocks?.find((f) => (factKey ? f.key === factKey : statement.includes(f.value))) || spine?.factLocks?.[0];
-
-    setActiveTraceability({
-      statement: statement || currentOutput?.title || 'Executive Summary Briefing Statement',
-      factKey: factKey || fact?.key || 'Target Milestone Date',
-      factValue: factValue || fact?.value || '2026-08-24',
-      category: fact?.category || 'DATE',
-      sourceDoc: projectTitle ? `${projectTitle} Document` : (spine?.sourceDocument?.filename || 'Ingested Source Document'),
-      page: fact?.pageNumber || 1,
-      section: 'Content Spine & Fact Lock Layer',
-      snippet: fact?.sourceSnippet || (fact ? `${fact.key}: ${fact.value}` : 'Ingested source document verifies milestone target date and system consistency metrics.'),
-    });
-    setRightPanelTab('traceability');
-    setShowLineageModal(true);
-  };
-
   const handleInjectDateError = () => {
     if (onInjectTestErrors) {
       const dateFact = spine?.factLocks?.find((f) => f.category === 'DATE');
       const targetDate = dateFact ? dateFact.value : '2026-08-24';
       onInjectTestErrors([
         {
-          outputType: 'EXECUTIVE_SUMMARY',
+          outputType: selectedType,
           find: targetDate,
           replace: '2026-09-15',
         },
@@ -205,12 +173,57 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
   };
 
   const renderOutputPreview = () => {
-    if (!currentOutput) {
-      return <div style={{ color: 'var(--text-muted)' }}>No output content generated yet.</div>;
+    if (!currentContent) {
+      return (
+        <div
+          style={{
+            textAlign: 'center',
+            padding: '48px 24px',
+            background: 'var(--bg-secondary)',
+            borderRadius: 'var(--radius-lg)',
+            border: '1px solid var(--border-color)',
+          }}
+        >
+          <div
+            style={{
+              width: '44px',
+              height: '44px',
+              borderRadius: '50%',
+              background: currentFormatItem.bgLight,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 14px',
+            }}
+          >
+            {currentFormatItem.brandName ? (
+              <BrandLogo name={currentFormatItem.brandName} size={22} />
+            ) : currentFormatItem.lucideIcon ? (
+              <currentFormatItem.lucideIcon size={22} color={currentFormatItem.brandColor} />
+            ) : (
+              <FileText size={22} color="var(--burgundy-700)" />
+            )}
+          </div>
+          <h3 style={{ fontSize: 'var(--font-md)', fontWeight: 800, color: 'var(--burgundy-900)', marginBottom: '6px' }}>
+            {currentFormatItem.label} Pending
+          </h3>
+          <p style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)', maxWidth: '400px', margin: '0 auto 20px' }}>
+            Content for this deliverable format has not been generated yet or is pending synthesis.
+          </p>
+          <button
+            type="button"
+            className="btn-primary btn-sm"
+            onClick={() => onRegenerateOutput(selectedType)}
+            style={{ gap: '8px', margin: '0 auto' }}
+          >
+            <RotateCw size={14} aria-hidden="true" /> Generate {currentFormatItem.label}
+          </button>
+        </div>
+      );
     }
 
     if (selectedType === 'PRESENTATION') {
-      const slides = parseJsonSafe(currentOutput.content);
+      const slides = parseJsonSafe(currentContent);
       if (Array.isArray(slides)) {
         const currentSlide = slides[activeSlideIndex] || slides[0];
         return (
@@ -261,7 +274,7 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
     }
 
     if (selectedType === 'INFOGRAPHIC') {
-      const layout = parseJsonSafe(currentOutput.content);
+      const layout = parseJsonSafe(currentContent);
       if (layout && layout.header) {
         return (
           <div style={{ background: 'var(--bg-secondary)', borderRadius: 'var(--radius-lg)', padding: '24px', border: '1px solid var(--border-color)' }}>
@@ -293,12 +306,17 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
       }
     }
 
-    return <MarkdownRenderer content={currentOutput.content} />;
+    return <MarkdownRenderer content={currentContent} />;
   };
 
   const score = validationReport?.consistencyScore ?? 100;
   const passed = validationReport?.passed ?? true;
   const errorsCount = validationReport?.errorsCount ?? 0;
+
+  // Deliverable-specific validation issues
+  const currentFormatIssues = (validationReport?.issues || []).filter(
+    (issue: any) => !issue.outputType || issue.outputType === selectedType
+  );
 
   return (
     <div className="page-enter" style={{ height: 'calc(100vh - 70px)', display: 'flex', flexDirection: 'column', padding: '16px 24px', gap: '16px' }}>
@@ -328,10 +346,11 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <AIProviderStatusBadge />
+
           {/* Validation Summary */}
           <div
             role="region"
-            aria-label={`Consistency score ${score} percent. ${validationReport?.factsChecked || (spine?.factLocks?.length || 63)} facts checked, ${validationReport?.passedCount || (spine?.factLocks?.length || 59)} passed, ${errorsCount} errors.`}
+            aria-label={`Consistency score ${score} percent.`}
             style={{ display: 'flex', alignItems: 'center', gap: '12px' }}
           >
             <div
@@ -448,24 +467,6 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
                       fontFamily: 'var(--font-sans)',
                     }}
                   >
-                    📦 Export Full Package
-                  </button>
-                  <button
-                    role="menuitem"
-                    onClick={() => { setIsExportMenuOpen(false); onOpenExport(); }}
-                    style={{
-                      width: '100%',
-                      textAlign: 'left',
-                      padding: '8px 12px',
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--text-primary)',
-                      fontSize: 'var(--font-sm)',
-                      cursor: 'pointer',
-                      borderRadius: 'var(--radius-sm)',
-                      fontFamily: 'var(--font-sans)',
-                    }}
-                  >
                     📑 Export DOCX / PDF / PPTX
                   </button>
                 </div>
@@ -519,18 +520,19 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
           }}
         >
           <div style={{ fontSize: 'var(--font-xs)', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px', paddingLeft: '4px' }}>
-            Output Formats ({outputs.length})
+            Output Formats ({formats.length})
           </div>
 
           {formats.map((item) => {
             const isSelected = selectedType === item.type;
             const outputObj = outputs.find((o) => o.outputType === item.type);
-            const exists = Boolean(outputObj);
+            const exists = Boolean(outputObj && outputObj.content && outputObj.content.trim().length > 0);
             const isVerified = outputObj?.isConsistent ?? true;
 
             return (
               <button
                 key={item.type}
+                type="button"
                 onClick={() => setSelectedType(item.type)}
                 style={{
                   display: 'flex',
@@ -662,22 +664,22 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '14px', borderBottom: '1px solid var(--border-color)' }}>
             <div>
               <span className="badge badge-burgundy" style={{ marginBottom: '4px', display: 'inline-block' }}>
-                {currentOutput?.outputType.replace(/_/g, ' ') || 'DELIVERABLE'}
+                {selectedType.replace(/_/g, ' ')}
               </span>
               <h2 style={{ fontSize: 'var(--font-md)', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-                {currentOutput?.title || 'Deliverable Content'}
+                {currentOutput?.title || currentFormatItem.label}
               </h2>
             </div>
 
             <div style={{ display: 'flex', gap: '8px' }}>
-              <button className="btn-secondary btn-sm" onClick={handleCopy} title="Copy Content">
+              <button className="btn-secondary btn-sm" onClick={handleCopy} disabled={!currentContent} title="Copy Content">
                 {copied ? <Check size={14} color="var(--color-success)" aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
                 <span>{copied ? 'Copied!' : 'Copy'}</span>
               </button>
               <button
                 className="btn-secondary btn-sm"
                 onClick={() => onRegenerateOutput(selectedType)}
-                title="Regenerate this deliverable"
+                title={`Regenerate ${currentFormatItem.label}`}
               >
                 <RotateCw size={14} aria-hidden="true" /> Regenerate
               </button>
@@ -714,7 +716,7 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
               className={`tab-item ${rightPanelTab === 'validation' ? 'active' : ''}`}
               onClick={() => setRightPanelTab('validation')}
             >
-              Validation ({errorsCount})
+              Validation ({currentFormatIssues.length})
             </button>
             <button
               className={`tab-item ${rightPanelTab === 'test' ? 'active' : ''}`}
@@ -724,15 +726,15 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
             </button>
           </div>
 
-          {/* Tab 1: Traceability Inspector */}
+          {/* Tab 1: Traceability Inspector (Strictly Synced to Selected Deliverable) */}
           {rightPanelTab === 'traceability' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div style={{ background: 'var(--pink-100)', border: '1px solid var(--pink-300)', borderRadius: 'var(--radius-md)', padding: '14px' }}>
                 <div style={{ fontSize: 'var(--font-xs)', fontWeight: 700, color: 'var(--burgundy-700)', textTransform: 'uppercase' }}>
-                  SELECTED STATEMENT / CLAIM
+                  SELECTED DELIVERABLE BRIEFING
                 </div>
                 <div style={{ fontSize: 'var(--font-sm)', fontWeight: 700, color: 'var(--burgundy-900)', marginTop: '4px', lineHeight: '1.4' }}>
-                  "{activeTraceability.statement}"
+                  "{currentTraceability.statement}"
                 </div>
               </div>
 
@@ -744,50 +746,44 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
                   <span className="badge badge-success" style={{ fontSize: '0.68rem' }}>🔒 Immutable</span>
                 </div>
                 <div style={{ fontSize: 'var(--font-sm)', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  {activeTraceability.factKey}: <span style={{ color: 'var(--burgundy-700)', fontFamily: 'var(--font-mono)' }}>{activeTraceability.factValue}</span>
+                  {currentTraceability.factKey}: <span style={{ color: 'var(--burgundy-700)', fontFamily: 'var(--font-mono)' }}>{currentTraceability.factValue}</span>
                 </div>
               </div>
 
               <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '14px' }}>
                 <div style={{ fontSize: 'var(--font-xs)', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '6px' }}>
-                  SOURCE DOCUMENT SNIPPET (Page {activeTraceability.page})
+                  SOURCE DOCUMENT SNIPPET (Page {currentTraceability.page})
                 </div>
                 <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-secondary)', fontStyle: 'italic', lineHeight: '1.6' }}>
-                  "{cleanPdfText(activeTraceability.snippet)}"
+                  "{cleanPdfText(currentTraceability.snippet)}"
                 </div>
               </div>
-
-              <button
-                className="btn-secondary btn-sm"
-                onClick={() => handleInspectTraceability(currentOutput?.title || 'Deliverable Claim')}
-                style={{ width: '100%', justifyContent: 'center' }}
-              >
-                Inspect Fact Lineage
-              </button>
             </div>
           )}
 
-          {/* Tab 2: Validation Inspector */}
+          {/* Tab 2: Validation Inspector (Filtered to Selected Deliverable) */}
           {rightPanelTab === 'validation' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div style={{ background: passed ? 'var(--color-success-bg)' : 'var(--color-error-bg)', border: `1px solid ${passed ? 'var(--color-success-border)' : 'var(--color-error-border)'}`, borderRadius: 'var(--radius-md)', padding: '14px' }}>
-                <div style={{ fontWeight: 800, fontSize: 'var(--font-sm)', color: passed ? 'var(--color-success)' : 'var(--color-error)' }}>
-                  {passed ? '✓ Fact Lock Verified' : '⚠️ Fact Discrepancy Found'}
+              <div style={{ background: currentFormatIssues.length === 0 ? 'var(--color-success-bg)' : 'var(--color-error-bg)', border: `1px solid ${currentFormatIssues.length === 0 ? 'var(--color-success-border)' : 'var(--color-error-border)'}`, borderRadius: 'var(--radius-md)', padding: '14px' }}>
+                <div style={{ fontWeight: 800, fontSize: 'var(--font-sm)', color: currentFormatIssues.length === 0 ? 'var(--color-success)' : 'var(--color-error)' }}>
+                  {currentFormatIssues.length === 0 ? `✓ ${currentFormatItem.label} Fact Lock Verified` : `⚠️ Discrepancies Found in ${currentFormatItem.label}`}
                 </div>
                 <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                  {validationReport?.summary || 'All extracted numbers and milestone dates match source documents.'}
+                  {currentFormatIssues.length === 0
+                    ? `All extracted numbers and milestone dates in ${currentFormatItem.label} match locked source facts.`
+                    : `${currentFormatIssues.length} fact consistency issues found in ${currentFormatItem.label}.`}
                 </div>
               </div>
 
-              {errorsCount === 0 ? (
+              {currentFormatIssues.length === 0 ? (
                 <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--font-xs)' }}>
-                  ✓ No validation issues found. All facts passed.
+                  ✓ No validation issues found for {currentFormatItem.label}.
                 </div>
               ) : (
-                validationReport?.issues?.map((err: any, i: number) => (
+                currentFormatIssues.map((err: any, i: number) => (
                   <div key={i} style={{ background: 'var(--color-error-bg)', border: '1px solid var(--color-error-border)', borderRadius: 'var(--radius-md)', padding: '12px' }}>
                     <div style={{ fontWeight: 700, fontSize: 'var(--font-xs)', color: 'var(--color-error)' }}>
-                      ❌ {err.outputType || err.deliverableType || 'OUTPUT'}: {err.factKey || err.claimKey || 'Discrepancy'}
+                      ❌ {err.factKey || err.claimKey || 'Discrepancy'}
                     </div>
                     <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-secondary)', marginTop: '4px' }}>
                       Found "{err.foundValue}" vs Locked "{err.expectedValue}"
@@ -798,137 +794,24 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
             </div>
           )}
 
-          {/* Tab 3: Test Error Injection */}
+          {/* Tab 3: Test Errors Injection */}
           {rightPanelTab === 'test' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div style={{ fontWeight: 700, fontSize: 'var(--font-xs)', color: 'var(--text-primary)' }}>Automated Guardrail Results</div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--font-xs)' }}>
-                  <span>Fact Lock Test</span>
-                  <span style={{ color: 'var(--color-success)', fontWeight: 700 }}>PASS</span>
+              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '14px' }}>
+                <div style={{ fontWeight: 700, fontSize: 'var(--font-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px' }}>
+                  INJECT SYNTHETIC ERROR
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--font-xs)' }}>
-                  <span>Hallucination Test</span>
-                  <span style={{ color: 'var(--color-success)', fontWeight: 700 }}>PASS</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--font-xs)' }}>
-                  <span>Source Grounding</span>
-                  <span style={{ color: 'var(--color-success)', fontWeight: 700 }}>PASS</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--font-xs)' }}>
-                  <span>Output Consistency</span>
-                  <span style={{ color: errorsCount > 0 ? 'var(--color-error)' : 'var(--color-success)', fontWeight: 700 }}>
-                    {errorsCount > 0 ? 'FAIL' : 'PASS'}
-                  </span>
-                </div>
+                <p style={{ fontSize: 'var(--font-xs)', color: 'var(--text-secondary)', marginBottom: '12px' }}>
+                  Inject a date/number discrepancy into <strong>{currentFormatItem.label}</strong> to test the Fact Lock Guardrail.
+                </p>
+                <button className="btn-secondary btn-sm" onClick={handleInjectDateError} style={{ width: '100%' }}>
+                  Inject Target Date Error into {currentFormatItem.label}
+                </button>
               </div>
-
-              <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)', lineHeight: '1.6' }}>
-                Inject an intentional fact error into the Executive Summary to test the automated Fact Lock validation engine and auto-fix loop.
-              </div>
-              <button className="btn-danger" onClick={handleInjectDateError}>
-                <AlertTriangle size={15} aria-hidden="true" /> Inject Test Date Error
-              </button>
             </div>
           )}
         </div>
       </div>
-
-      {/* Fact Lineage Drilldown Modal */}
-      {showLineageModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0, 0, 0, 0.65)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            backdropFilter: 'blur(4px)',
-          }}
-          onClick={() => setShowLineageModal(false)}
-        >
-          <div
-            style={{
-              background: 'var(--bg-surface)',
-              border: '1px solid var(--border-color)',
-              borderRadius: 'var(--radius-lg)',
-              padding: '28px',
-              maxWidth: '620px',
-              width: '90%',
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 style={{ fontSize: 'var(--font-md)', fontWeight: 800, color: 'var(--burgundy-900)', margin: 0 }}>
-                🔍 Inspect Fact Lineage
-              </h3>
-              <button
-                className="btn-secondary btn-sm"
-                onClick={() => setShowLineageModal(false)}
-                style={{ padding: '4px 10px' }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', position: 'relative' }}>
-              {/* Stage 1 */}
-              <div style={{ background: 'var(--pink-100)', border: '1px solid var(--pink-300)', padding: '12px 16px', borderRadius: '8px' }}>
-                <div style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--burgundy-700)', textTransform: 'uppercase' }}>1. Generated Deliverable Statement</div>
-                <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--burgundy-900)', marginTop: '2px' }}>"{activeTraceability.statement}"</div>
-              </div>
-              <div style={{ textAlign: 'center', color: 'var(--burgundy-700)', fontWeight: 800, marginTop: '-6px', marginBottom: '-6px' }}>↓</div>
-
-              {/* Stage 2 */}
-              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', padding: '12px 16px', borderRadius: '8px' }}>
-                <div style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>2. Content Spine Claim</div>
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)', marginTop: '2px' }}>Single Source of Truth Claim Node</div>
-              </div>
-              <div style={{ textAlign: 'center', color: 'var(--burgundy-700)', fontWeight: 800, marginTop: '-6px', marginBottom: '-6px' }}>↓</div>
-
-              {/* Stage 3 */}
-              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', padding: '12px 16px', borderRadius: '8px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>3. Fact Lock Anchor</div>
-                  <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>🔒 Immutable</span>
-                </div>
-                <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--burgundy-800)', marginTop: '2px' }}>
-                  {activeTraceability.factKey}: {activeTraceability.factValue}
-                </div>
-              </div>
-              <div style={{ textAlign: 'center', color: 'var(--burgundy-700)', fontWeight: 800, marginTop: '-6px', marginBottom: '-6px' }}>↓</div>
-
-              {/* Stage 4 */}
-              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', padding: '12px 16px', borderRadius: '8px' }}>
-                <div style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>4. Source Document</div>
-                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', marginTop: '2px' }}>📄 {activeTraceability.sourceDoc}</div>
-              </div>
-              <div style={{ textAlign: 'center', color: 'var(--burgundy-700)', fontWeight: 800, marginTop: '-6px', marginBottom: '-6px' }}>↓</div>
-
-              {/* Stage 5 */}
-              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', padding: '12px 16px', borderRadius: '8px' }}>
-                <div style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>5. Source Page & Excerpt</div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontStyle: 'italic', marginTop: '2px' }}>
-                  Page {activeTraceability.page}: "{cleanPdfText(activeTraceability.snippet)}"
-                </div>
-              </div>
-            </div>
-
-            <div style={{ marginTop: '20px', textAlign: 'right' }}>
-              <button className="btn-primary btn-sm" onClick={() => setShowLineageModal(false)}>
-                Close Lineage Trace
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
-

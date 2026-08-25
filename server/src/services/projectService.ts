@@ -401,8 +401,7 @@ Executive Summary: In Q3 2026, Smart India Hackathon introduced the AI Content T
 
     const spineData = this.buildSpineData(latestSpine, facts, entities);
 
-    const provider = getAIProvider();
-    const res = await provider.generateOutput(
+    const res = await AIProviderManager.generateOutput(
       spineData,
       output.outputType as OutputType,
       audience
@@ -412,7 +411,7 @@ Executive Summary: In Q3 2026, Smart India Hackathon introduced the AI Content T
       projectId: output.projectId,
       outputType: output.outputType,
       audienceProfileName: audience,
-      title: res.title,
+      title: res.title || `${output.outputType} Deliverable`,
       content: res.content,
       createdReason: 'RE_GENERATION',
     });
