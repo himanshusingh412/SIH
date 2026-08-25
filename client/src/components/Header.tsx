@@ -81,7 +81,7 @@ export const Header: React.FC<HeaderProps> = ({
     try {
       const res = await apiClient.getAIProviders();
       const provInfo = (res.providers?.[prov] as any);
-      const name = prov === 'gemini' ? 'Gemini' : 'OpenAI';
+      const name = prov === 'gemini' ? 'Gemini' : prov === 'openai' ? 'OpenAI' : 'AWS Bedrock';
       if (!provInfo || provInfo.configured === false) {
         setProviderStatus({ status: 'not_configured', message: `${name} — Not Configured` });
         return;
@@ -97,7 +97,7 @@ export const Header: React.FC<HeaderProps> = ({
       }
       setProviderStatus({ status: 'ready', message: `${name} Ready`, model: provInfo.model });
     } catch {
-      const name = prov === 'gemini' ? 'Gemini' : 'OpenAI';
+      const name = prov === 'gemini' ? 'Gemini' : prov === 'openai' ? 'OpenAI' : 'AWS Bedrock';
       setProviderStatus({ status: 'ready', message: `${name} Ready` });
     }
   };
@@ -108,14 +108,14 @@ export const Header: React.FC<HeaderProps> = ({
     setProviderStatus({ status: 'checking', message: 'Testing...' });
     try {
       const res = await apiClient.testAIProvider(selectedProvider);
-      const name = selectedProvider === 'gemini' ? 'Gemini' : 'OpenAI';
+      const name = selectedProvider === 'gemini' ? 'Gemini' : selectedProvider === 'openai' ? 'OpenAI' : 'AWS Bedrock';
       if (res && res.status === 'connected') {
         setProviderStatus({ status: 'connected', message: `${name} Ready`, model: res.model });
       } else {
         setProviderStatus({ status: 'unavailable', message: `${name} Unavailable` });
       }
     } catch (err: any) {
-      const name = selectedProvider === 'gemini' ? 'Gemini' : 'OpenAI';
+      const name = selectedProvider === 'gemini' ? 'Gemini' : selectedProvider === 'openai' ? 'OpenAI' : 'AWS Bedrock';
       const isRateLimit = err?.code === 'GEMINI_RATE_LIMITED' || err?.statusCode === 429;
       const retryAfter = err?.retryAfterSeconds || 45;
       if (isRateLimit) {
@@ -286,6 +286,7 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <option value="gemini" style={{ background: '#FFF8FA' }}>Gemini 2.0 Flash Lite</option>
             <option value="openai" style={{ background: '#FFF8FA' }}>OpenAI GPT-4o</option>
+            <option value="bedrock" style={{ background: '#FFF8FA' }}>AWS Bedrock (Claude 3.5)</option>
             <option value="mock"   style={{ background: '#FFF8FA' }}>Mock AI (Demo)</option>
           </select>
         </div>

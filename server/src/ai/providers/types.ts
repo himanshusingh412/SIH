@@ -1,6 +1,6 @@
 import { AudienceProfile, ContentSpineData, InputCategory, OutputType, ValidationIssue } from '../../types';
 
-export type ProviderType = 'MOCK' | 'GEMINI' | 'OPENAI' | 'LLAMA';
+export type ProviderType = 'MOCK' | 'GEMINI' | 'OPENAI' | 'BEDROCK' | 'LLAMA';
 
 export interface AIProviderInstance {
   name: string;

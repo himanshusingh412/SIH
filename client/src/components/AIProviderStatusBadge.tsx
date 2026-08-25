@@ -65,6 +65,8 @@ export const AIProviderStatusBadge: React.FC<{ selectedProvider?: string }> = ({
   const activeName =
     selectedProvider === 'openai'
       ? 'OpenAI GPT-4o'
+      : selectedProvider === 'bedrock'
+      ? 'AWS Bedrock (Claude 3.5)'
       : selectedProvider === 'mock'
       ? 'Mock AI Engine'
       : 'Google Gemini 3.1';

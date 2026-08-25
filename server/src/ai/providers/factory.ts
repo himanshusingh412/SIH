@@ -1,4 +1,5 @@
 import { config } from '../../config';
+import { BedrockProvider } from './bedrockProvider';
 import { GeminiProvider } from './geminiProvider';
 import { LlamaProvider } from './llamaProvider';
 import { MockProvider } from './mockProvider';
@@ -11,6 +12,7 @@ const instances: Record<ProviderType, AIProviderInstance> = {
   MOCK: new MockProvider(),
   GEMINI: new GeminiProvider(),
   OPENAI: new OpenAIProvider(),
+  BEDROCK: new BedrockProvider(),
   LLAMA: new LlamaProvider(),
 };
 

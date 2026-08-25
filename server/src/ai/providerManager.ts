@@ -18,6 +18,7 @@ export interface NormalizedAIResponse {
 export interface CircuitBreakerStatus {
   gemini: { status: string; remainingSeconds?: number; message?: string };
   openai: { status: string; remainingSeconds?: number; message?: string };
+  bedrock: { status: string; remainingSeconds?: number; message?: string };
   mock: { status: string; message?: string };
   activeProvider: string;
 }
@@ -31,11 +32,18 @@ export class AIProviderManager {
   static getStatus(preferredProvider = 'GEMINI'): CircuitBreakerStatus {
     const geminiHealth = providerHealthTracker.getHealth('gemini');
     const openAIHealth = providerHealthTracker.getHealth('openai');
+    const bedrockHealth = providerHealthTracker.getHealth('bedrock');
     const mockHealth = providerHealthTracker.getHealth('mock');
 
     let active = preferredProvider.toUpperCase();
     if (active === 'GEMINI' && geminiHealth.status === 'rate_limited') {
-      active = openAIHealth.configured && openAIHealth.status !== 'rate_limited' ? 'OPENAI' : 'MOCK';
+      if (openAIHealth.configured && openAIHealth.status !== 'rate_limited') {
+        active = 'OPENAI';
+      } else if (bedrockHealth.configured && bedrockHealth.status !== 'rate_limited') {
+        active = 'BEDROCK';
+      } else {
+        active = 'MOCK';
+      }
     }
 
     return {
@@ -48,6 +56,11 @@ export class AIProviderManager {
         status: openAIHealth.status,
         remainingSeconds: openAIHealth.remainingRetrySeconds,
         message: openAIHealth.message,
+      },
+      bedrock: {
+        status: bedrockHealth.status,
+        remainingSeconds: bedrockHealth.remainingRetrySeconds,
+        message: bedrockHealth.message,
       },
       mock: {
         status: mockHealth.status,
@@ -208,12 +221,13 @@ export class AIProviderManager {
     const chain: ProviderType[] = [];
     const prefUpper = (preferredProvider || 'GEMINI').toUpperCase() as ProviderType;
 
-    if (['GEMINI', 'OPENAI', 'LLAMA', 'MOCK'].includes(prefUpper)) {
+    if (['GEMINI', 'OPENAI', 'BEDROCK', 'LLAMA', 'MOCK'].includes(prefUpper)) {
       chain.push(prefUpper);
     }
 
     if (!chain.includes('GEMINI')) chain.push('GEMINI');
     if (!chain.includes('OPENAI')) chain.push('OPENAI');
+    if (!chain.includes('BEDROCK')) chain.push('BEDROCK');
     if (!chain.includes('MOCK')) chain.push('MOCK');
 
     return chain;

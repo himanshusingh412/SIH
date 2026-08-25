@@ -35,6 +35,13 @@ class ProviderHealthTracker {
     lastErrorMessage?: string;
   } = {};
 
+  private bedrockState: {
+    lastSuccessAt?: Date;
+    last429At?: Date;
+    retryAfterSeconds?: number;
+    lastErrorMessage?: string;
+  } = {};
+
   recordSuccess(provider: string) {
     const norm = provider.toLowerCase();
     if (norm === 'gemini') {
@@ -47,6 +54,11 @@ class ProviderHealthTracker {
       this.openAIState.last429At = undefined;
       this.openAIState.retryAfterSeconds = undefined;
       this.openAIState.lastErrorMessage = undefined;
+    } else if (norm === 'bedrock') {
+      this.bedrockState.lastSuccessAt = new Date();
+      this.bedrockState.last429At = undefined;
+      this.bedrockState.retryAfterSeconds = undefined;
+      this.bedrockState.lastErrorMessage = undefined;
     }
   }
 
@@ -60,6 +72,10 @@ class ProviderHealthTracker {
       this.openAIState.last429At = new Date();
       this.openAIState.retryAfterSeconds = retryAfterSeconds;
       this.openAIState.lastErrorMessage = errorMessage || 'OpenAI is temporarily rate-limited.';
+    } else if (norm === 'bedrock') {
+      this.bedrockState.last429At = new Date();
+      this.bedrockState.retryAfterSeconds = retryAfterSeconds;
+      this.bedrockState.lastErrorMessage = errorMessage || 'Bedrock is temporarily rate-limited.';
     }
   }
 
@@ -69,6 +85,8 @@ class ProviderHealthTracker {
       this.geminiState.lastErrorMessage = message;
     } else if (norm === 'openai') {
       this.openAIState.lastErrorMessage = message;
+    } else if (norm === 'bedrock') {
+      this.bedrockState.lastErrorMessage = message;
     }
   }
 
@@ -190,6 +208,59 @@ class ProviderHealthTracker {
         model,
         configured: true,
         message: 'OpenAI — Ready',
+      };
+    }
+
+    if (norm === 'bedrock') {
+      const apiKey = config.bedrockApiKey;
+      const model = config.bedrockModel || 'anthropic.claude-3-5-sonnet-20240620-v1:0';
+      if (!apiKey) {
+        return {
+          provider: 'bedrock',
+          status: 'not_configured',
+          model,
+          configured: false,
+          message: 'AWS Bedrock — Not Configured',
+        };
+      }
+
+      if (this.bedrockState.last429At && this.bedrockState.retryAfterSeconds) {
+        const elapsedSec = Math.floor((Date.now() - this.bedrockState.last429At.getTime()) / 1000);
+        const remaining = this.bedrockState.retryAfterSeconds - elapsedSec;
+        if (remaining > 0) {
+          return {
+            provider: 'bedrock',
+            status: 'rate_limited',
+            model,
+            configured: true,
+            last429At: this.bedrockState.last429At.toISOString(),
+            retryAfterSeconds: this.bedrockState.retryAfterSeconds,
+            remainingRetrySeconds: remaining,
+            message: `AWS Bedrock — Rate Limited (Retry in ${remaining}s)`,
+          };
+        } else {
+          this.bedrockState.last429At = undefined;
+          this.bedrockState.retryAfterSeconds = undefined;
+        }
+      }
+
+      if (this.bedrockState.lastSuccessAt) {
+        return {
+          provider: 'bedrock',
+          status: 'connected',
+          model,
+          configured: true,
+          lastSuccessfulRequestAt: this.bedrockState.lastSuccessAt.toISOString(),
+          message: 'AWS Bedrock — Connected',
+        };
+      }
+
+      return {
+        provider: 'bedrock',
+        status: 'ready',
+        model,
+        configured: true,
+        message: 'AWS Bedrock — Ready',
       };
     }
 

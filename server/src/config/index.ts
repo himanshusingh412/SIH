@@ -21,6 +21,8 @@ export const config = {
   aiModel: process.env.AI_MODEL || 'gemini-3.1-flash-lite',
   openaiApiKey: process.env.OPENAI_API_KEY || '',
   openaiModel: process.env.OPENAI_MODEL || 'gpt-4o',
+  bedrockApiKey: process.env.BEDROCK_API_KEY || '',
+  bedrockModel: process.env.BEDROCK_MODEL || 'anthropic.claude-3-5-sonnet-20240620-v1:0',
   demoMode: process.env.DEMO_MODE === 'true',
   geminiApiKey: process.env.AI_API_KEY || process.env.GEMINI_API_KEY || '',
 };
