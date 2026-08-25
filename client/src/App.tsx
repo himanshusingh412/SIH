@@ -47,6 +47,9 @@ export function App() {
     isLoading,
     error,
     setError,
+    pipelineStage,
+    pipelineStatus,
+    stageError,
     notice,
     setNotice,
     loadDemo,
@@ -111,8 +114,6 @@ export function App() {
       localStorage.setItem('sih_active_project_id', pId);
       localStorage.setItem('sih_active_route', 'workspace');
       setRoute('workspace');
-    } else {
-      setRoute('new-transformation');
     }
   };
 
@@ -334,7 +335,14 @@ export function App() {
 
             {/* Screen 3: Upload Processing */}
             {route === 'processing' && (
-              <ProcessingScreen onComplete={handleProcessingComplete} />
+              <ProcessingScreen
+                onComplete={handleProcessingComplete}
+                isProcessing={isLoading}
+                activeStage={pipelineStage}
+                stageStatus={pipelineStatus}
+                error={stageError || error}
+                onRetry={() => setRoute('new-transformation')}
+              />
             )}
 
             {/* Screen 4: Content Spine */}

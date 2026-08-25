@@ -6,8 +6,6 @@ import {
   Video,
   Copy,
   Check,
-  ChevronLeft,
-  ChevronRight,
   RotateCw,
   Download,
   AlertTriangle,
@@ -16,6 +14,10 @@ import {
 } from 'lucide-react';
 import type { ContentSpineData, GeneratedOutput, OutputType, ValidationReportData } from '../types';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import { SlideDeckView } from './deliverables/SlideDeckView';
+import { InfographicView } from './deliverables/InfographicView';
+import { VideoStoryboardView } from './deliverables/VideoStoryboardView';
+import { parseInfographic, parseSlides, parseVideoPackage } from '../utils/deliverableParsers';
 import { cleanPdfText } from '../utils/pdfSanitizer';
 import { BrandLogo, type BrandName } from './BrandLogo';
 import { AIProviderStatusBadge } from './AIProviderStatusBadge';
@@ -153,10 +155,6 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
     }
   };
 
-  const parseJsonSafe = (str: string) => {
-    try { return JSON.parse(str); } catch { return null; }
-  };
-
   const handleInjectDateError = () => {
     if (onInjectTestErrors) {
       const dateFact = spine?.factLocks?.find((f) => f.category === 'DATE');
@@ -222,87 +220,35 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
       );
     }
 
+    // Structured providers emit JSON; live Gemini may return prose. Both are
+    // parsed into the same shape so every deliverable renders in its real
+    // format rather than falling through to raw markdown.
     if (selectedType === 'PRESENTATION') {
-      const slides = parseJsonSafe(currentContent);
-      if (Array.isArray(slides)) {
-        const currentSlide = slides[activeSlideIndex] || slides[0];
+      const slides = parseSlides(currentContent);
+      if (slides.length > 0) {
         return (
-          <div style={{ background: 'var(--bg-secondary)', borderRadius: 'var(--radius-lg)', padding: '24px', border: '1px solid var(--border-color)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <span className="badge badge-burgundy">
-                Slide {activeSlideIndex + 1} of {slides.length}
-              </span>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button
-                  className="btn-secondary btn-sm"
-                  disabled={activeSlideIndex === 0}
-                  onClick={() => setActiveSlideIndex((prev) => Math.max(0, prev - 1))}
-                  aria-label="Previous Slide"
-                >
-                  <ChevronLeft size={15} aria-hidden="true" /> Prev
-                </button>
-                <button
-                  className="btn-secondary btn-sm"
-                  disabled={activeSlideIndex === slides.length - 1}
-                  onClick={() => setActiveSlideIndex((prev) => Math.min(slides.length - 1, prev + 1))}
-                  aria-label="Next Slide"
-                >
-                  Next <ChevronRight size={15} aria-hidden="true" />
-                </button>
-              </div>
-            </div>
-
-            <div style={{ background: 'var(--bg-surface)', padding: '24px', borderRadius: 'var(--radius-md)', minHeight: '220px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
-              <h3 style={{ fontSize: 'var(--font-lg)', fontWeight: 800, color: 'var(--burgundy-900)', marginBottom: '16px' }}>
-                {currentSlide.title}
-              </h3>
-              <ul style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '10px', color: 'var(--text-primary)' }}>
-                {currentSlide.bulletPoints?.map((bp: string, i: number) => (
-                  <li key={i} style={{ fontSize: 'var(--font-sm)', lineHeight: '1.6' }}>{bp}</li>
-                ))}
-              </ul>
-            </div>
-
-            {currentSlide.speakerNotes && (
-              <div style={{ marginTop: '16px', padding: '12px 16px', background: 'var(--pink-100)', border: '1px solid var(--pink-300)', borderRadius: 'var(--radius-md)', fontSize: 'var(--font-xs)', color: 'var(--text-secondary)' }}>
-                <strong style={{ color: 'var(--burgundy-900)' }}>🔊 Speaker Notes:</strong> {currentSlide.speakerNotes}
-              </div>
-            )}
-          </div>
+          <SlideDeckView
+            slides={slides}
+            activeIndex={activeSlideIndex}
+            onChangeIndex={setActiveSlideIndex}
+            deckTitle={projectTitle}
+            accentColor={currentFormatItem.brandColor}
+          />
         );
       }
     }
 
     if (selectedType === 'INFOGRAPHIC') {
-      const layout = parseJsonSafe(currentContent);
-      if (layout && layout.header) {
-        return (
-          <div style={{ background: 'var(--bg-secondary)', borderRadius: 'var(--radius-lg)', padding: '24px', border: '1px solid var(--border-color)' }}>
-            <div style={{ textAlign: 'center', marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid var(--border-color)' }}>
-              <span className="badge badge-success" style={{ marginBottom: '8px' }}>Infographic Layout</span>
-              <h3 style={{ fontSize: 'var(--font-xl)', fontWeight: 800, color: 'var(--burgundy-900)' }}>{layout.header.title}</h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-sm)' }}>{layout.header.subtitle}</p>
-            </div>
+      const layout = parseInfographic(currentContent);
+      if (layout && (layout.heroMetrics.length > 0 || layout.sectionCallouts.length > 0)) {
+        return <InfographicView layout={layout} accentColor={currentFormatItem.brandColor} />;
+      }
+    }
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-              {layout.heroMetrics?.map((m: any, i: number) => (
-                <div key={i} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '16px', textAlign: 'center', boxShadow: 'var(--shadow-sm)' }}>
-                  <div style={{ fontSize: 'var(--font-xl)', fontWeight: 800, color: 'var(--burgundy-700)' }}>{m.value}</div>
-                  <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)', marginTop: '4px' }}>{m.label}</div>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {layout.sectionCallouts?.map((c: any, i: number) => (
-                <div key={i} style={{ background: 'var(--bg-surface)', padding: '14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                  <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>{c.title}</div>
-                  <div style={{ fontSize: 'var(--font-sm)', color: 'var(--text-secondary)' }}>{c.text}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
+    if (selectedType === 'VIDEO_PACKAGE') {
+      const pkg = parseVideoPackage(currentContent);
+      if (pkg && pkg.storyboard.length > 0) {
+        return <VideoStoryboardView pkg={pkg} accentColor={currentFormatItem.brandColor} />;
       }
     }
 

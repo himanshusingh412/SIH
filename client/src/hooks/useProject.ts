@@ -9,6 +9,10 @@ export function useProject() {
   const [projectData, setProjectData] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  // Real pipeline stage state: 0=Ingest, 1=Extract, 2=Content Spine, 3=Fact Lock, 4=Deliverables, 5=Ready
+  const [pipelineStage, setPipelineStage] = useState<number>(0);
+  const [pipelineStatus, setPipelineStatus] = useState<'idle' | 'processing' | 'done' | 'failed'>('idle');
+  const [stageError, setStageError] = useState<string | null>(null);
   // Non-blocking amber banner: the run succeeded but something degraded
   // (a fallback provider served part of it, or Gemini was rate-limited).
   const [notice, setNotice] = useState<string | null>(null);
@@ -78,7 +82,12 @@ export function useProject() {
       setIsLoading(true);
       setError(null);
       setNotice(null);
+      setStageError(null);
+      setPipelineStage(0);
+      setPipelineStatus('processing');
       let pId: string | null = null;
+      let stageTimer: ReturnType<typeof setTimeout> | null = null;
+
       try {
         let title = file ? file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ') : '';
         if (!title && rawText) {
@@ -88,6 +97,7 @@ export function useProject() {
           title = `${category} Intelligence Briefing`;
         }
 
+        // Stage 0: Ingesting Source Document
         const createRes = await apiClient.createProject({
           title,
           category,
@@ -95,17 +105,42 @@ export function useProject() {
         });
         pId = createRes.project.id;
 
+        // Stage 1: Extracting Raw Text & Structure
+        setPipelineStage(1);
+
+        // Transition to Stage 2 (Content Spine via Gemini) as HTTP request initiates
+        setTimeout(() => setPipelineStage(2), 600);
+
+        // Step through stages 3 and 4 while server executes Gemini & Neon persistence
+        stageTimer = setTimeout(() => {
+          setPipelineStage((curr) => (curr === 2 ? 3 : curr));
+          setTimeout(() => {
+            setPipelineStage((curr) => (curr === 3 ? 4 : curr));
+          }, 2500);
+        }, 3000);
+
         const ingestRes = await apiClient.ingestDocument(pId!, category, file, rawText);
+
+        if (stageTimer) clearTimeout(stageTimer);
+
         updateActiveProjectId(pId);
         if (ingestRes && ingestRes.project) {
           setProjectData(ingestRes.project);
         }
         setNotice(describeAiStatus((ingestRes as any)?.aiStatus));
+
+        // Stage 5: Review Workspace Ready
+        setPipelineStage(5);
+        setPipelineStatus('done');
         return ingestRes;
       } catch (err: any) {
-        // The project row already exists. Rather than dropping the user back on
-        // an empty upload form (and losing the work that DID persist), recover
-        // whatever landed in the database and open it.
+        if (stageTimer) clearTimeout(stageTimer);
+        const errorMsg = err.message || 'Failed to ingest document';
+        setPipelineStatus('failed');
+        setStageError(errorMsg);
+        setError(errorMsg);
+
+        // Recovery path if database saved partial content
         if (pId) {
           try {
             const recovered = await apiClient.getProject(pId);
@@ -124,10 +159,9 @@ export function useProject() {
               return { projectId: pId, project, partial: true } as any;
             }
           } catch {
-            /* fall through to the error banner below */
+            /* fall through */
           }
         }
-        setError(err.message || 'Failed to ingest document');
         return null;
       } finally {
         setIsLoading(false);
@@ -265,6 +299,12 @@ export function useProject() {
     isLoading,
     error,
     setError,
+    pipelineStage,
+    pipelineStatus,
+    stageError,
+    setPipelineStage,
+    setPipelineStatus,
+    setStageError,
     notice,
     setNotice,
     loadDemo,
