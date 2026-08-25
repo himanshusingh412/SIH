@@ -223,7 +223,7 @@ export function App() {
         />
 
         {/* Main Content Area */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-dark)' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)', minWidth: 0 }}>
           <Header
             onLoadDemo={handleLoadDemo}
             onOpenExport={() => setShowExportModal(true)}

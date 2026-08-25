@@ -104,14 +104,9 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
   };
 
   const parseJsonSafe = (str: string) => {
-    try {
-      return JSON.parse(str);
-    } catch {
-      return null;
-    }
+    try { return JSON.parse(str); } catch { return null; }
   };
 
-  // Inspect "Why was this generated?" helper
   const handleInspectTraceability = (statement: string, factKey?: string, factValue?: string) => {
     const fact = spine?.factLocks?.find((f) => (factKey ? f.key === factKey : statement.includes(f.value))) || spine?.factLocks?.[0];
 
@@ -128,7 +123,6 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
     setRightPanelTab('traceability');
   };
 
-  // Test error injection helper
   const handleInjectDateError = () => {
     if (onInjectTestErrors) {
       const dateFact = spine?.factLocks?.find((f) => f.category === 'DATE');
@@ -144,7 +138,6 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
     }
   };
 
-  // Render Rich Deliverable Content (Issue 4: Rich Markdown Renderer)
   const renderOutputPreview = () => {
     if (!currentOutput) {
       return <div style={{ color: 'var(--text-muted)' }}>No output content generated yet.</div>;
@@ -155,47 +148,45 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
       if (Array.isArray(slides)) {
         const currentSlide = slides[activeSlideIndex] || slides[0];
         return (
-          <div style={{ background: 'rgba(0, 0, 0, 0.4)', borderRadius: 'var(--radius-lg)', padding: '24px', border: '1px solid var(--border-color)' }}>
+          <div style={{ background: 'var(--bg-secondary)', borderRadius: 'var(--radius-lg)', padding: '24px', border: '1px solid var(--border-color)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <span className="badge badge-indigo">
+              <span className="badge badge-burgundy">
                 Slide {activeSlideIndex + 1} of {slides.length}
               </span>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button
-                  className="btn-secondary"
-                  style={{ padding: '4px 10px' }}
+                  className="btn-secondary btn-sm"
                   disabled={activeSlideIndex === 0}
                   onClick={() => setActiveSlideIndex((prev) => Math.max(0, prev - 1))}
                   aria-label="Previous Slide"
                 >
-                  <ChevronLeft size={16} aria-hidden="true" /> Prev
+                  <ChevronLeft size={15} aria-hidden="true" /> Prev
                 </button>
                 <button
-                  className="btn-secondary"
-                  style={{ padding: '4px 10px' }}
+                  className="btn-secondary btn-sm"
                   disabled={activeSlideIndex === slides.length - 1}
                   onClick={() => setActiveSlideIndex((prev) => Math.min(slides.length - 1, prev + 1))}
                   aria-label="Next Slide"
                 >
-                  Next <ChevronRight size={16} aria-hidden="true" />
+                  Next <ChevronRight size={15} aria-hidden="true" />
                 </button>
               </div>
             </div>
 
-            <div style={{ background: 'var(--bg-dark)', padding: '24px', borderRadius: 'var(--radius-md)', minHeight: '220px', border: '1px solid var(--border-color)' }}>
-              <h3 style={{ fontSize: 'var(--font-lg)', fontWeight: 800, color: 'white', marginBottom: '16px' }}>
+            <div style={{ background: 'var(--bg-surface)', padding: '24px', borderRadius: 'var(--radius-md)', minHeight: '220px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
+              <h3 style={{ fontSize: 'var(--font-lg)', fontWeight: 800, color: 'var(--burgundy-900)', marginBottom: '16px' }}>
                 {currentSlide.title}
               </h3>
-              <ul style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '10px', color: '#e2e8f0' }}>
+              <ul style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '10px', color: 'var(--text-primary)' }}>
                 {currentSlide.bulletPoints?.map((bp: string, i: number) => (
-                  <li key={i} style={{ fontSize: 'var(--font-sm)' }}>{bp}</li>
+                  <li key={i} style={{ fontSize: 'var(--font-sm)', lineHeight: '1.6' }}>{bp}</li>
                 ))}
               </ul>
             </div>
 
             {currentSlide.speakerNotes && (
-              <div style={{ marginTop: '16px', padding: '12px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: 'var(--radius-sm)', fontSize: 'var(--font-xs)', color: 'var(--text-muted)' }}>
-                <strong style={{ color: 'white' }}>🔊 Speaker Notes:</strong> {currentSlide.speakerNotes}
+              <div style={{ marginTop: '16px', padding: '12px 16px', background: 'var(--pink-100)', border: '1px solid var(--pink-300)', borderRadius: 'var(--radius-md)', fontSize: 'var(--font-xs)', color: 'var(--text-secondary)' }}>
+                <strong style={{ color: 'var(--burgundy-900)' }}>🔊 Speaker Notes:</strong> {currentSlide.speakerNotes}
               </div>
             )}
           </div>
@@ -207,17 +198,17 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
       const layout = parseJsonSafe(currentOutput.content);
       if (layout && layout.header) {
         return (
-          <div style={{ background: 'rgba(0, 0, 0, 0.4)', borderRadius: 'var(--radius-lg)', padding: '24px', border: '1px solid var(--border-color)' }}>
+          <div style={{ background: 'var(--bg-secondary)', borderRadius: 'var(--radius-lg)', padding: '24px', border: '1px solid var(--border-color)' }}>
             <div style={{ textAlign: 'center', marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid var(--border-color)' }}>
-              <span className="badge badge-emerald" style={{ marginBottom: '8px' }}>Infographic Layout</span>
-              <h3 style={{ fontSize: 'var(--font-xl)', fontWeight: 800, color: 'white' }}>{layout.header.title}</h3>
+              <span className="badge badge-success" style={{ marginBottom: '8px' }}>Infographic Layout</span>
+              <h3 style={{ fontSize: 'var(--font-xl)', fontWeight: 800, color: 'var(--burgundy-900)' }}>{layout.header.title}</h3>
               <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-sm)' }}>{layout.header.subtitle}</p>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '24px' }}>
               {layout.heroMetrics?.map((m: any, i: number) => (
-                <div key={i} style={{ background: 'rgba(99, 102, 241, 0.1)', border: '1px solid var(--accent-primary)', borderRadius: 'var(--radius-md)', padding: '16px', textAlign: 'center' }}>
-                  <div style={{ fontSize: 'var(--font-xl)', fontWeight: 800, color: 'var(--accent-sky)' }}>{m.value}</div>
+                <div key={i} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '16px', textAlign: 'center', boxShadow: 'var(--shadow-sm)' }}>
+                  <div style={{ fontSize: 'var(--font-xl)', fontWeight: 800, color: 'var(--burgundy-700)' }}>{m.value}</div>
                   <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)', marginTop: '4px' }}>{m.label}</div>
                 </div>
               ))}
@@ -225,9 +216,9 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {layout.sectionCallouts?.map((c: any, i: number) => (
-                <div key={i} style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
-                  <div style={{ fontWeight: 700, color: 'white', marginBottom: '4px' }}>{c.title}</div>
-                  <div style={{ fontSize: 'var(--font-sm)', color: 'var(--text-muted)' }}>{c.text}</div>
+                <div key={i} style={{ background: 'var(--bg-surface)', padding: '14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>{c.title}</div>
+                  <div style={{ fontSize: 'var(--font-sm)', color: 'var(--text-secondary)' }}>{c.text}</div>
                 </div>
               ))}
             </div>
@@ -236,7 +227,6 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
       }
     }
 
-    // Default Rich Markdown Rendering for document deliverables (Issue 4 Fix)
     return <MarkdownRenderer content={currentOutput.content} />;
   };
 
@@ -245,46 +235,49 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
   const errorsCount = validationReport?.errorsCount ?? 0;
 
   return (
-    <div style={{ height: 'calc(100vh - 70px)', display: 'flex', flexDirection: 'column', padding: '16px 20px', gap: '16px' }}>
-      {/* Top Bar Workspace Banner */}
+    <div className="page-enter" style={{ height: 'calc(100vh - 70px)', display: 'flex', flexDirection: 'column', padding: '16px 24px', gap: '16px' }}>
+
+      {/* Top Bar Banner */}
       <div
-        className="glass-panel"
         style={{
+          background: 'var(--bg-surface)',
+          border: '1px solid var(--border-color)',
+          borderRadius: 'var(--radius-lg)',
           padding: '14px 20px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          borderLeft: passed ? '4px solid var(--accent-emerald)' : '4px solid var(--accent-rose)',
+          borderLeft: passed ? '4px solid var(--color-success)' : '4px solid var(--color-error)',
+          boxShadow: 'var(--shadow-sm)',
         }}
       >
         <div>
-          <div style={{ fontSize: 'var(--font-xs)', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+          <div style={{ fontSize: 'var(--font-xs)', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
             Project Transformation Workspace
           </div>
-          <h2 style={{ fontSize: 'var(--font-lg)', fontWeight: 800, color: 'white', marginTop: '2px' }}>
+          <h1 style={{ fontSize: 'var(--font-md)', fontWeight: 800, color: 'var(--text-primary)', margin: 0, marginTop: '2px' }}>
             {projectTitle || 'SIH 2026 AI Content Transformation'}
-          </h2>
+          </h1>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-          {/* Redesigned Validation Summary Hierarchy (Issue 8 Fix) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          {/* Validation Summary */}
           <div
-            className="validation-summary"
             role="region"
             aria-label={`Consistency score ${score} percent. ${validationReport?.factsChecked || 0} facts checked, ${validationReport?.passedCount || 0} passed, ${errorsCount} errors.`}
-            style={{ display: 'flex', alignItems: 'center', gap: '14px' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '12px' }}
           >
             <div
               style={{
-                width: '44px',
-                height: '44px',
+                width: '42px',
+                height: '42px',
                 borderRadius: 'var(--radius-full)',
-                background: score === 100 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(244, 63, 94, 0.2)',
-                border: score === 100 ? '2px solid var(--accent-emerald)' : '2px solid var(--accent-rose)',
+                background: score === 100 ? 'var(--color-success-bg)' : 'var(--color-error-bg)',
+                border: score === 100 ? '2px solid var(--color-success)' : '2px solid var(--color-error)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: score === 100 ? '#a7f3d0' : '#fecdd3',
+                color: score === 100 ? 'var(--color-success)' : 'var(--color-error)',
                 fontWeight: 800,
                 fontSize: 'var(--font-sm)',
               }}
@@ -292,46 +285,45 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
               {score}%
             </div>
             <div>
-              <div style={{ fontSize: 'var(--font-sm)', fontWeight: 700, color: '#ffffff' }}>
+              <div style={{ fontSize: 'var(--font-sm)', fontWeight: 700, color: 'var(--text-primary)' }}>
                 {score}% Consistency
               </div>
-              {/* High-visibility breakdown statistics (min 0.85rem / bold values) */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '3px', fontSize: 'var(--font-sm)' }}>
-                <span style={{ color: '#cbd5e1' }}>
-                  <strong style={{ color: '#ffffff' }}>{validationReport?.factsChecked || 0}</strong> Facts
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '2px', fontSize: 'var(--font-xs)' }}>
+                <span style={{ color: 'var(--text-secondary)' }}>
+                  <strong>{validationReport?.factsChecked || 0}</strong> Facts
                 </span>
-                <span style={{ color: '#a7f3d0' }}>
-                  <strong style={{ color: '#34d399' }}>{validationReport?.passedCount || 0}</strong> Passed
+                <span style={{ color: 'var(--color-success)' }}>
+                  <strong>{validationReport?.passedCount || 0}</strong> Passed
                 </span>
-                <span style={{ color: errorsCount > 0 ? '#fecdd3' : '#cbd5e1', fontWeight: errorsCount > 0 ? 700 : 400 }}>
-                  <strong style={{ color: errorsCount > 0 ? '#f43f5e' : '#ffffff' }}>{errorsCount}</strong> {errorsCount > 0 ? 'Errors ⚠️' : 'Errors'}
+                <span style={{ color: errorsCount > 0 ? 'var(--color-error)' : 'var(--text-muted)', fontWeight: errorsCount > 0 ? 700 : 400 }}>
+                  <strong>{errorsCount}</strong> {errorsCount > 0 ? 'Errors ⚠️' : 'Errors'}
                 </span>
               </div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '10px', position: 'relative' }}>
+          <div style={{ display: 'flex', gap: '8px', position: 'relative' }}>
             {errorsCount > 0 && (
               <button
-                className="btn-primary"
+                className="btn-primary btn-sm"
                 onClick={onAutoCorrect}
                 disabled={isFixing}
-                style={{ background: 'var(--accent-amber)', borderColor: 'var(--accent-amber)' }}
+                style={{ background: 'var(--color-warning)', borderColor: 'var(--color-warning)' }}
               >
-                <Zap size={15} aria-hidden="true" /> {isFixing ? 'Fixing Facts...' : 'Fix Automatically'}
+                <Zap size={14} aria-hidden="true" /> {isFixing ? 'Fixing Facts...' : 'Fix Automatically'}
               </button>
             )}
 
-            {/* Unified Export Menu Button (Issue 5 Fix) */}
+            {/* Export Dropdown */}
             <div style={{ position: 'relative' }}>
               <button
-                className="btn-secondary"
+                className="btn-secondary btn-sm"
                 onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
                 aria-haspopup="menu"
                 aria-expanded={isExportMenuOpen}
                 aria-label="Export Menu Options"
               >
-                <Download size={15} aria-hidden="true" /> Export Deliverable ▾
+                <Download size={14} aria-hidden="true" /> Export Deliverable ▾
               </button>
 
               {isExportMenuOpen && (
@@ -343,13 +335,13 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
                     top: '100%',
                     right: 0,
                     marginTop: '6px',
-                    background: '#121826',
+                    background: 'var(--bg-surface)',
                     border: '1px solid var(--border-color)',
                     borderRadius: 'var(--radius-md)',
                     padding: '6px',
                     width: '220px',
-                    zIndex: 200,
-                    boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)',
+                    zIndex: 'var(--z-modal)',
+                    boxShadow: 'var(--shadow-md)',
                   }}
                   onKeyDown={(e) => {
                     if (e.key === 'Escape') setIsExportMenuOpen(false);
@@ -364,10 +356,11 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
                       padding: '8px 12px',
                       background: 'none',
                       border: 'none',
-                      color: 'white',
+                      color: 'var(--text-primary)',
                       fontSize: 'var(--font-sm)',
                       cursor: 'pointer',
                       borderRadius: 'var(--radius-sm)',
+                      fontFamily: 'var(--font-sans)',
                     }}
                   >
                     📄 Copy Markdown Text
@@ -381,13 +374,14 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
                       padding: '8px 12px',
                       background: 'none',
                       border: 'none',
-                      color: 'white',
+                      color: 'var(--text-primary)',
                       fontSize: 'var(--font-sm)',
                       cursor: 'pointer',
                       borderRadius: 'var(--radius-sm)',
+                      fontFamily: 'var(--font-sans)',
                     }}
                   >
-                    📦 Export Full Project Package
+                    📦 Export Full Package
                   </button>
                   <button
                     role="menuitem"
@@ -398,10 +392,11 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
                       padding: '8px 12px',
                       background: 'none',
                       border: 'none',
-                      color: 'white',
+                      color: 'var(--text-primary)',
                       fontSize: 'var(--font-sm)',
                       cursor: 'pointer',
                       borderRadius: 'var(--radius-sm)',
+                      fontFamily: 'var(--font-sans)',
                     }}
                   >
                     📑 Export DOCX / PDF / PPTX
@@ -413,240 +408,210 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
         </div>
       </div>
 
-      {/* Human Review Shield Banner if Auto-Fix retries unresolved */}
+      {/* Human Review Shield */}
       {validationReport?.humanReviewRequired && (
         <div
           role="alert"
           style={{
-            background: 'rgba(244, 63, 94, 0.15)',
-            border: '1.5px solid var(--accent-rose)',
+            background: 'var(--color-error-bg)',
+            border: '1px solid var(--color-error-border)',
             borderRadius: 'var(--radius-md)',
             padding: '12px 18px',
             display: 'flex',
             alignItems: 'center',
             gap: '12px',
-            color: '#fda4af',
+            color: 'var(--color-error)',
           }}
         >
-          <AlertTriangle size={20} aria-hidden="true" />
+          <AlertTriangle size={18} aria-hidden="true" />
           <div style={{ flex: 1 }}>
-            <strong style={{ color: 'white' }}>HUMAN REVIEW REQUIRED SHIELD ACTIVE</strong>
+            <strong style={{ color: 'var(--text-primary)' }}>HUMAN REVIEW REQUIRED SHIELD ACTIVE</strong>
             <div style={{ fontSize: 'var(--font-xs)', marginTop: '2px' }}>
-              3 automated correction retries executed. Discrepancies require manual operator verification before release.
+              Discrepancies require manual operator verification before release.
             </div>
           </div>
-          <span className="badge badge-rose">Human Review Required</span>
+          <span className="badge badge-error">Human Review Required</span>
         </div>
       )}
 
       {/* 3-Pane Main Layout */}
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '260px 1fr 340px', gap: '16px', minHeight: 0 }}>
+      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '250px 1fr 340px', gap: '16px', minHeight: 0 }}>
+
         {/* Pane 1: Format Selector List */}
-        <div className="glass-panel" style={{ padding: '16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <div style={{ fontSize: 'var(--font-xs)', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px', paddingLeft: '4px' }}>
+        <div
+          style={{
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-color)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '16px',
+            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '6px',
+            boxShadow: 'var(--shadow-sm)',
+          }}
+        >
+          <div style={{ fontSize: 'var(--font-xs)', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px', paddingLeft: '4px' }}>
             Output Formats ({outputs.length})
           </div>
 
           {formats.map((item) => {
             const Icon = item.icon;
-            const output = outputs.find((o) => o.outputType === item.type);
             const isSelected = selectedType === item.type;
-            const isConsistent = output?.isConsistent ?? true;
+            const outputObj = outputs.find((o) => o.outputType === item.type);
+            const isVerified = outputObj?.isConsistent ?? true;
 
             return (
               <button
                 key={item.type}
                 onClick={() => setSelectedType(item.type)}
-                aria-pressed={isSelected}
                 style={{
-                  padding: '12px 14px',
-                  borderRadius: 'var(--radius-md)',
-                  background: isSelected ? 'rgba(99, 102, 241, 0.18)' : 'rgba(255, 255, 255, 0.02)',
-                  border: isSelected ? '1.5px solid var(--accent-primary)' : '1px solid var(--border-color)',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '12px',
+                  justifyContent: 'space-between',
+                  padding: '10px 12px',
+                  borderRadius: 'var(--radius-md)',
+                  background: isSelected ? 'var(--burgundy-700)' : 'var(--bg-secondary)',
+                  border: isSelected ? '1px solid var(--burgundy-800)' : '1px solid var(--border-color)',
+                  color: isSelected ? '#FFF5F8' : 'var(--text-primary)',
+                  cursor: 'pointer',
                   textAlign: 'left',
-                  width: '100%',
+                  transition: 'all var(--transition-fast)',
+                  fontFamily: 'var(--font-sans)',
                 }}
               >
-                <div
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                  <Icon size={16} color={isSelected ? '#F6C2D3' : 'var(--burgundy-700)'} aria-hidden="true" />
+                  <span style={{ fontSize: 'var(--font-sm)', fontWeight: isSelected ? 700 : 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {item.label}
+                  </span>
+                </div>
+                <span
                   style={{
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: 'var(--radius-sm)',
-                    background: isSelected ? 'var(--accent-primary)' : 'rgba(255, 255, 255, 0.06)',
-                    color: isSelected ? 'white' : 'var(--text-muted)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    padding: '2px 6px',
+                    borderRadius: 'var(--radius-pill)',
+                    background: isSelected ? 'rgba(255,255,255,0.2)' : isVerified ? 'var(--color-success-bg)' : 'var(--color-warning-bg)',
+                    color: isSelected ? '#FFF5F8' : isVerified ? 'var(--color-success)' : 'var(--color-warning)',
+                    border: isSelected ? 'none' : isVerified ? '1px solid var(--color-success-border)' : '1px solid var(--color-warning-border)',
                   }}
                 >
-                  <Icon size={16} aria-hidden="true" />
-                </div>
-
-                <div style={{ flex: 1, overflow: 'hidden' }}>
-                  <div style={{ fontWeight: 700, fontSize: 'var(--font-sm)', color: isSelected ? 'white' : '#e2e8f0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {item.label}
-                  </div>
-                  <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)' }}>
-                    Profile: {item.profile}
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    width: '8px',
-                    height: '8px',
-                    borderRadius: 'var(--radius-full)',
-                    background: isConsistent ? 'var(--accent-emerald)' : 'var(--accent-rose)',
-                  }}
-                  aria-label={isConsistent ? 'Consistent' : 'Inconsistency detected'}
-                />
+                  {isVerified ? '🔒 Locked' : '⚠️ Review'}
+                </span>
               </button>
             );
           })}
         </div>
 
-        {/* Pane 2: Center Preview & Output Actions Toolbar (Issue 7 Fix) */}
-        <div className="glass-panel" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto' }}>
-          {/* Header Row + Action Toolbar */}
-          <div className="output-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '12px', borderBottom: '1px solid var(--border-color)', gap: '16px', flexWrap: 'wrap' }}>
-            <div className="output-card-title">
-              <span className="badge badge-indigo" style={{ marginBottom: '4px' }}>
-                {formats.find((f) => f.type === selectedType)?.label || selectedType}
+        {/* Pane 2: Content Preview Document Box */}
+        <div
+          style={{
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-color)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '24px',
+            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: 'var(--shadow-sm)',
+          }}
+        >
+          {/* Header Controls */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '14px', borderBottom: '1px solid var(--border-color)' }}>
+            <div>
+              <span className="badge badge-burgundy" style={{ marginBottom: '4px', display: 'inline-block' }}>
+                {currentOutput?.outputType.replace(/_/g, ' ')}
               </span>
-              <h3 style={{ fontSize: 'var(--font-lg)', fontWeight: 800, color: 'white' }}>
-                {(currentOutput?.title || `${selectedType} Output`)
-                  .replace(/EXECUTIVE SUMMARY \(EXECUTIVE\)/gi, 'Executive Summary')
-                  .replace(/LINKEDIN POST \(EXECUTIVE\)/gi, 'LinkedIn Post')
-                  .replace(/X THREAD \(EXECUTIVE\)/gi, 'X Thread')
-                  .replace(/ADVISORY \(EXECUTIVE\)/gi, 'Official Advisory')
-                  .replace(/PRESENTATION \(EXECUTIVE\)/gi, 'Presentation Deck')
-                  .replace(/INFOGRAPHIC \(EXECUTIVE\)/gi, 'Infographic Layout Data')
-                  .replace(/VIDEO PACKAGE \(EXECUTIVE\)/gi, 'Video Package')
-                  .replace(/\s*—\s*Gemini\s*\(gemini-[^)]+\)/gi, ' (Gemini)')
-                  .replace(/\s*—\s*GPT-4o/gi, ' (OpenAI)')}
-              </h3>
+              <h2 style={{ fontSize: 'var(--font-md)', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                {currentOutput?.title || 'Deliverable Content'}
+              </h2>
             </div>
 
-            {/* Dedicated Action Toolbar (Issue 7 Fix) */}
-            <div
-              className="output-actions"
-              role="toolbar"
-              aria-label="Deliverable actions toolbar"
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}
-            >
-              <button
-                className="btn-secondary"
-                onClick={() => handleInspectTraceability(currentOutput?.title || 'Deliverable Statement')}
-                style={{ fontSize: 'var(--font-xs)' }}
-              >
-                <HelpCircle size={14} aria-hidden="true" /> Why was this generated?
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button className="btn-secondary btn-sm" onClick={handleCopy} title="Copy Content">
+                {copied ? <Check size={14} color="var(--color-success)" aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
+                <span>{copied ? 'Copied!' : 'Copy'}</span>
               </button>
               <button
-                className="btn-secondary"
+                className="btn-secondary btn-sm"
                 onClick={() => onRegenerateOutput(selectedType)}
-                style={{ fontSize: 'var(--font-xs)' }}
+                title="Regenerate this deliverable"
               >
                 <RotateCw size={14} aria-hidden="true" /> Regenerate
-              </button>
-              <button className="btn-secondary" onClick={handleCopy} style={{ fontSize: 'var(--font-xs)' }}>
-                {copied ? <Check size={14} color="#10b981" aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
-                {copied ? 'Copied' : 'Copy'}
               </button>
             </div>
           </div>
 
+          {/* Render Output Content */}
           <div style={{ flex: 1 }}>{renderOutputPreview()}</div>
         </div>
 
-        {/* Pane 3: Right Inspector Panel */}
-        <div className="glass-panel" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto' }}>
-          {/* Tab Selector Buttons */}
-          <div style={{ display: 'flex', background: 'rgba(0, 0, 0, 0.4)', padding: '4px', borderRadius: 'var(--radius-md)' }}>
+        {/* Pane 3: Traceability & Validation Metadata Inspector */}
+        <div
+          style={{
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-color)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '20px',
+            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px',
+            boxShadow: 'var(--shadow-sm)',
+          }}
+        >
+          {/* Inspector Tab Buttons */}
+          <div className="tab-list" style={{ marginBottom: '12px' }}>
             <button
+              className={`tab-item ${rightPanelTab === 'traceability' ? 'active' : ''}`}
               onClick={() => setRightPanelTab('traceability')}
-              style={{
-                flex: 1,
-                padding: '6px',
-                borderRadius: 'var(--radius-sm)',
-                border: 'none',
-                background: rightPanelTab === 'traceability' ? 'var(--accent-primary)' : 'transparent',
-                color: rightPanelTab === 'traceability' ? 'white' : 'var(--text-muted)',
-                fontWeight: 600,
-                fontSize: 'var(--font-xs)',
-                cursor: 'pointer',
-              }}
             >
               Traceability
             </button>
             <button
+              className={`tab-item ${rightPanelTab === 'validation' ? 'active' : ''}`}
               onClick={() => setRightPanelTab('validation')}
-              style={{
-                flex: 1,
-                padding: '6px',
-                borderRadius: 'var(--radius-sm)',
-                border: 'none',
-                background: rightPanelTab === 'validation' ? 'var(--accent-primary)' : 'transparent',
-                color: rightPanelTab === 'validation' ? 'white' : 'var(--text-muted)',
-                fontWeight: 600,
-                fontSize: 'var(--font-xs)',
-                cursor: 'pointer',
-              }}
             >
-              Validation
+              Validation ({errorsCount})
             </button>
             <button
+              className={`tab-item ${rightPanelTab === 'test' ? 'active' : ''}`}
               onClick={() => setRightPanelTab('test')}
-              style={{
-                flex: 1,
-                padding: '6px',
-                borderRadius: 'var(--radius-sm)',
-                border: 'none',
-                background: rightPanelTab === 'test' ? 'var(--accent-primary)' : 'transparent',
-                color: rightPanelTab === 'test' ? 'white' : 'var(--text-muted)',
-                fontWeight: 600,
-                fontSize: 'var(--font-xs)',
-                cursor: 'pointer',
-              }}
             >
-              Test Harness
+              Test Errors
             </button>
           </div>
 
-          {/* Tab 1: Source Traceability Inspector */}
+          {/* Tab 1: Traceability Inspector */}
           {rightPanelTab === 'traceability' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
-                Source Traceability Anchor
-              </div>
-
-              <div style={{ background: 'rgba(0, 0, 0, 0.3)', borderRadius: 'var(--radius-md)', padding: '12px', border: '1px solid var(--border-color)' }}>
-                <div style={{ fontSize: 'var(--font-xs)', color: 'var(--accent-sky)', fontWeight: 700 }}>CLAIM STATEMENT</div>
-                <div style={{ fontSize: 'var(--font-sm)', color: 'white', marginTop: '4px', fontStyle: 'italic' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ background: 'var(--pink-100)', border: '1px solid var(--pink-300)', borderRadius: 'var(--radius-md)', padding: '14px' }}>
+                <div style={{ fontSize: 'var(--font-xs)', fontWeight: 700, color: 'var(--burgundy-700)', textTransform: 'uppercase' }}>
+                  SELECTED STATEMENT / CLAIM
+                </div>
+                <div style={{ fontSize: 'var(--font-sm)', fontWeight: 700, color: 'var(--burgundy-900)', marginTop: '4px', lineHeight: '1.4' }}>
                   "{activeTraceability.statement}"
                 </div>
               </div>
 
-              <div style={{ background: 'rgba(0, 0, 0, 0.3)', borderRadius: 'var(--radius-md)', padding: '12px', border: '1px solid var(--border-color)' }}>
-                <div style={{ fontSize: 'var(--font-xs)', color: '#a7f3d0', fontWeight: 700 }}>VERIFIED FACT LOCK NODE</div>
-                <div style={{ fontSize: 'var(--font-sm)', fontWeight: 800, color: '#38bdf8', marginTop: '4px' }}>
-                  🔒 {activeTraceability.factKey}: {activeTraceability.factValue}
+              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontSize: 'var(--font-xs)', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                    LOCKED FACT ANCHOR
+                  </span>
+                  <span className="badge badge-success" style={{ fontSize: '0.68rem' }}>🔒 Immutable</span>
                 </div>
-                <span className="badge badge-emerald" style={{ marginTop: '8px', display: 'inline-block' }}>
-                  Category: {activeTraceability.category}
-                </span>
+                <div style={{ fontSize: 'var(--font-sm)', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  {activeTraceability.factKey}: <span style={{ color: 'var(--burgundy-700)', fontFamily: 'var(--font-mono)' }}>{activeTraceability.factValue}</span>
+                </div>
               </div>
 
-              <div style={{ background: 'rgba(0, 0, 0, 0.3)', borderRadius: 'var(--radius-md)', padding: '12px', border: '1px solid var(--border-color)' }}>
-                <div style={{ fontSize: 'var(--font-xs)', color: '#c7d2fe', fontWeight: 700 }}>SOURCE REFERENCE</div>
-                <div style={{ fontSize: 'var(--font-sm)', color: 'white', marginTop: '4px' }}>
-                  📄 {activeTraceability.sourceDoc} (Page {activeTraceability.page})
+              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '14px' }}>
+                <div style={{ fontSize: 'var(--font-xs)', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '6px' }}>
+                  SOURCE DOCUMENT SNIPPET (Page {activeTraceability.page})
                 </div>
-                <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)', marginTop: '6px', fontStyle: 'italic' }}>
+                <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-secondary)', fontStyle: 'italic', lineHeight: '1.6' }}>
                   "{cleanPdfText(activeTraceability.snippet)}"
                 </div>
               </div>
@@ -655,68 +620,38 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
 
           {/* Tab 2: Validation Inspector */}
           {rightPanelTab === 'validation' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
-                Discrepancy Inspector ({validationReport?.issues?.length || 0})
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ background: passed ? 'var(--color-success-bg)' : 'var(--color-error-bg)', border: `1px solid ${passed ? 'var(--color-success-border)' : 'var(--color-error-border)'}`, borderRadius: 'var(--radius-md)', padding: '14px' }}>
+                <div style={{ fontWeight: 800, fontSize: 'var(--font-sm)', color: passed ? 'var(--color-success)' : 'var(--color-error)' }}>
+                  {passed ? '✓ Fact Lock Verified' : '⚠️ Fact Discrepancy Found'}
+                </div>
+                <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                  {validationReport?.summary || 'All extracted numbers and milestone dates match source documents.'}
+                </div>
               </div>
 
-              {(!validationReport?.issues || validationReport.issues.length === 0) ? (
-                <div style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid var(--accent-emerald)', borderRadius: 'var(--radius-md)', padding: '16px', textAlign: 'center', color: '#a7f3d0' }}>
-                  <CheckCircle2 size={32} style={{ margin: '0 auto 8px' }} aria-hidden="true" />
-                  <div style={{ fontWeight: 700, fontSize: 'var(--font-sm)' }}>100% Factual Consistency</div>
-                  <div style={{ fontSize: 'var(--font-xs)', marginTop: '4px', color: 'var(--text-muted)' }}>
-                    All locked facts and milestone dates match Content Spine perfectly.
+              {validationReport?.errors?.map((err, i) => (
+                <div key={i} style={{ background: 'var(--color-error-bg)', border: '1px solid var(--color-error-border)', borderRadius: 'var(--radius-md)', padding: '12px' }}>
+                  <div style={{ fontWeight: 700, fontSize: 'var(--font-xs)', color: 'var(--color-error)' }}>
+                    ❌ {err.deliverableType}: {err.claimKey || 'Discrepancy'}
+                  </div>
+                  <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                    Found "{err.foundValue}" vs Locked "{err.expectedValue}"
                   </div>
                 </div>
-              ) : (
-                validationReport.issues.map((iss, i) => (
-                  <div key={i} style={{ background: 'rgba(244, 63, 94, 0.1)', border: '1px solid var(--accent-rose)', borderRadius: 'var(--radius-md)', padding: '12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span className="badge badge-rose">Discrepancy #{i + 1}</span>
-                      <span style={{ fontSize: 'var(--font-xs)', color: '#fda4af', fontWeight: 700 }}>{iss.severity}</span>
-                    </div>
-                    <div style={{ fontSize: 'var(--font-sm)', fontWeight: 700, color: 'white', marginTop: '8px' }}>
-                      Fact: {iss.factKey}
-                    </div>
-                    <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)', marginTop: '4px' }}>
-                      Expected: <strong style={{ color: '#34d399' }}>{iss.expectedValue}</strong>
-                    </div>
-                    <div style={{ fontSize: 'var(--font-xs)', color: '#fda4af', marginTop: '4px' }}>
-                      {iss.description}
-                    </div>
-                  </div>
-                ))
-              )}
+              ))}
             </div>
           )}
 
-          {/* Tab 3: Test Error Injection Harness */}
+          {/* Tab 3: Test Error Injection */}
           {rightPanelTab === 'test' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
-                Automated Test Harness
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)', lineHeight: '1.6' }}>
+                Inject a intentional fact error into the Executive Summary to test the automated Fact Lock validation engine and auto-fix loop.
               </div>
-              <p style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)' }}>
-                Inject a deliberate fact discrepancy into the generated Executive Summary to test the automated validation and auto-fix loop.
-              </p>
-
-              <button
-                className="btn-primary"
-                onClick={handleInjectDateError}
-                style={{ background: 'rgba(244, 63, 94, 0.8)', borderColor: 'var(--accent-rose)', width: '100%', justifyContent: 'center' }}
-              >
-                <Zap size={16} aria-hidden="true" /> Inject Milestone Date Error
+              <button className="btn-danger" onClick={handleInjectDateError}>
+                <AlertTriangle size={15} aria-hidden="true" /> Inject Test Date Error
               </button>
-
-              <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '12px', borderRadius: 'var(--radius-md)', fontSize: 'var(--font-xs)', color: 'var(--text-muted)' }}>
-                <strong style={{ color: 'white' }}>Test Flow:</strong>
-                <ol style={{ paddingLeft: '16px', marginTop: '6px', lineHeight: '1.6' }}>
-                  <li>Click button to corrupt locked date in deliverable.</li>
-                  <li>Consistency Score drops to 85%.</li>
-                  <li>Click "Fix Automatically" to trigger repair loop.</li>
-                  <li>Score restores to 100% verified.</li>
-                </ol>
-              </div>
             </div>
           )}
         </div>

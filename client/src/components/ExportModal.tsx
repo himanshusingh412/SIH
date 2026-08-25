@@ -29,37 +29,37 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
   const handleExportDOCX = () => {
     triggerDirectDownload(`/api/projects/${projectId}/export/docx`);
-    triggerToast('Downloading Real Word Document (.docx)...');
+    triggerToast('Downloading Word Document (.docx)...');
   };
 
   const handleExportPDF = () => {
     triggerDirectDownload(`/api/projects/${projectId}/export/pdf`);
-    triggerToast('Downloading Real PDF Document (.pdf)...');
+    triggerToast('Downloading PDF Document (.pdf)...');
   };
 
   const handleExportPPTX = () => {
     triggerDirectDownload(`/api/projects/${projectId}/export/pptx`);
-    triggerToast('Downloading Real PowerPoint Presentation (.pptx)...');
+    triggerToast('Downloading PowerPoint Presentation (.pptx)...');
   };
 
   const handleExportJSON = () => {
     triggerDirectDownload(`/api/projects/${projectId}/export/data?format=json`);
-    triggerToast('Downloading Real JSON Data Package (.json)...');
+    triggerToast('Downloading JSON Data Package (.json)...');
   };
 
   const handleExportCSV = () => {
     triggerDirectDownload(`/api/projects/${projectId}/export/data?format=csv`);
-    triggerToast('Downloading Real CSV Dataset (.csv)...');
+    triggerToast('Downloading CSV Dataset (.csv)...');
   };
 
   const handleExportXML = () => {
     triggerDirectDownload(`/api/projects/${projectId}/export/data?format=xml`);
-    triggerToast('Downloading Real XML Document (.xml)...');
+    triggerToast('Downloading XML Document (.xml)...');
   };
 
   const handleExportYAML = () => {
     triggerDirectDownload(`/api/projects/${projectId}/export/data?format=yaml`);
-    triggerToast('Downloading Real YAML Document (.yaml)...');
+    triggerToast('Downloading YAML Document (.yaml)...');
   };
 
   const downloadClientFile = (filename: string, content: string, type: string) => {
@@ -152,116 +152,116 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       aria-labelledby="export-modal-title"
       style={{
         position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: 'rgba(0, 0, 0, 0.85)',
-        backdropFilter: 'blur(8px)',
+        inset: 0,
+        background: 'rgba(42, 7, 21, 0.55)',
+        backdropFilter: 'blur(4px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 1000,
+        zIndex: 'var(--z-modal)',
       }}
     >
-      <div className="glass-panel" style={{ width: '640px', padding: '28px', border: '1px solid var(--accent-primary)', position: 'relative' }}>
+      <div
+        style={{
+          background: 'var(--bg-surface)',
+          border: '1px solid var(--border-color)',
+          borderRadius: 'var(--radius-xl)',
+          width: '620px',
+          padding: '28px',
+          boxShadow: 'var(--shadow-lg)',
+          position: 'relative',
+        }}
+      >
         <button
           onClick={onClose}
+          className="btn-ghost btn-icon"
           aria-label="Close export modal"
-          style={{
-            position: 'absolute',
-            top: '20px',
-            right: '20px',
-            background: 'none',
-            border: 'none',
-            color: 'var(--text-muted)',
-            cursor: 'pointer',
-          }}
+          style={{ position: 'absolute', top: '18px', right: '18px' }}
         >
-          <X size={20} aria-hidden="true" />
+          <X size={18} aria-hidden="true" />
         </button>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
-          <ShieldCheck size={22} color="#6ee7b7" aria-hidden="true" />
-          <h3 id="export-modal-title" style={{ fontSize: '1.35rem', fontWeight: 800 }} className="gradient-text">
+          <ShieldCheck size={22} color="var(--burgundy-700)" aria-hidden="true" />
+          <h2 id="export-modal-title" style={{ fontSize: 'var(--font-lg)', fontWeight: 800, color: 'var(--burgundy-900)', margin: 0 }}>
             Format Engine Export Center
-          </h3>
+          </h2>
         </div>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: '18px' }}>
-          Export real native binary documents (.docx, .pdf, .pptx) and structured datasets (.json, .csv, .xml, .yaml).
+        <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--font-xs)', marginBottom: '18px' }}>
+          Export native documents (.docx, .pdf, .pptx) and structured datasets (.json, .csv, .xml, .yaml).
         </p>
 
         {exportNotice && (
           <div
             style={{
-              background: 'rgba(16, 185, 129, 0.15)',
-              border: '1px solid #10b981',
-              borderRadius: '6px',
+              background: 'var(--color-success-bg)',
+              border: '1px solid var(--color-success-border)',
+              borderRadius: 'var(--radius-md)',
               padding: '8px 12px',
-              fontSize: '0.78rem',
-              color: '#6ee7b7',
+              fontSize: 'var(--font-xs)',
+              color: 'var(--color-success)',
               marginBottom: '16px',
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
             }}
           >
-            <Check size={14} /> {exportNotice}
+            <Check size={14} aria-hidden="true" /> {exportNotice}
           </div>
         )}
 
         {/* Real Exporters Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '18px' }}>
-          <button className="btn-primary" onClick={handleExportDOCX} style={{ justifyContent: 'center', padding: '10px 8px', fontSize: '0.78rem' }}>
-            <FileText size={15} /> Word (.docx)
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '16px' }}>
+          <button className="btn-primary btn-sm" onClick={handleExportDOCX} style={{ justifyContent: 'center' }}>
+            <FileText size={14} aria-hidden="true" /> Word (.docx)
           </button>
 
-          <button className="btn-primary" onClick={handleExportPDF} style={{ justifyContent: 'center', padding: '10px 8px', fontSize: '0.78rem' }}>
-            <Download size={15} /> PDF (.pdf)
+          <button className="btn-primary btn-sm" onClick={handleExportPDF} style={{ justifyContent: 'center' }}>
+            <Download size={14} aria-hidden="true" /> PDF (.pdf)
           </button>
 
-          <button className="btn-primary" onClick={handleExportPPTX} style={{ justifyContent: 'center', padding: '10px 8px', fontSize: '0.78rem' }}>
-            <Presentation size={15} /> PowerPoint (.pptx)
+          <button className="btn-primary btn-sm" onClick={handleExportPPTX} style={{ justifyContent: 'center' }}>
+            <Presentation size={14} aria-hidden="true" /> PowerPoint (.pptx)
           </button>
 
-          <button className="btn-secondary" onClick={handleExportJSON} style={{ justifyContent: 'center', padding: '10px 8px', fontSize: '0.78rem' }}>
-            <Code size={15} /> JSON (.json)
+          <button className="btn-secondary btn-sm" onClick={handleExportJSON} style={{ justifyContent: 'center' }}>
+            <Code size={14} aria-hidden="true" /> JSON (.json)
           </button>
 
-          <button className="btn-secondary" onClick={handleExportCSV} style={{ justifyContent: 'center', padding: '10px 8px', fontSize: '0.78rem' }}>
-            <FileSpreadsheet size={15} /> CSV (.csv)
+          <button className="btn-secondary btn-sm" onClick={handleExportCSV} style={{ justifyContent: 'center' }}>
+            <FileSpreadsheet size={14} aria-hidden="true" /> CSV (.csv)
           </button>
 
-          <button className="btn-secondary" onClick={handleExportXML} style={{ justifyContent: 'center', padding: '10px 8px', fontSize: '0.78rem' }}>
-            <Code size={15} /> XML (.xml)
+          <button className="btn-secondary btn-sm" onClick={handleExportXML} style={{ justifyContent: 'center' }}>
+            <Code size={14} aria-hidden="true" /> XML (.xml)
           </button>
 
-          <button className="btn-secondary" onClick={handleExportYAML} style={{ justifyContent: 'center', padding: '10px 8px', fontSize: '0.78rem' }}>
-            <Code size={15} /> YAML (.yaml)
+          <button className="btn-secondary btn-sm" onClick={handleExportYAML} style={{ justifyContent: 'center' }}>
+            <Code size={14} aria-hidden="true" /> YAML (.yaml)
           </button>
 
-          <button className="btn-secondary" onClick={handleExportMarkdown} style={{ justifyContent: 'center', padding: '10px 8px', fontSize: '0.78rem' }}>
-            <FileText size={15} /> Markdown (.md)
+          <button className="btn-secondary btn-sm" onClick={handleExportMarkdown} style={{ justifyContent: 'center' }}>
+            <FileText size={14} aria-hidden="true" /> Markdown (.md)
           </button>
 
-          <button className="btn-secondary" onClick={handleExportTXT} style={{ justifyContent: 'center', padding: '10px 8px', fontSize: '0.78rem' }}>
-            <FileText size={15} /> Text (.txt)
+          <button className="btn-secondary btn-sm" onClick={handleExportTXT} style={{ justifyContent: 'center' }}>
+            <FileText size={14} aria-hidden="true" /> Text (.txt)
           </button>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
-          <button className="btn-secondary" onClick={handlePrintView} style={{ flex: 1, justifyContent: 'center', padding: '9px', fontSize: '0.8rem' }}>
-            <Printer size={15} /> Print View
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+          <button className="btn-secondary btn-sm" onClick={handlePrintView} style={{ flex: 1, justifyContent: 'center' }}>
+            <Printer size={14} aria-hidden="true" /> Print View
           </button>
 
-          <button className="btn-secondary" onClick={handleCopyAll} style={{ flex: 1, justifyContent: 'center', padding: '9px', fontSize: '0.8rem' }}>
-            {copied ? <Check size={15} color="#6ee7b7" /> : <Copy size={15} />}
+          <button className="btn-secondary btn-sm" onClick={handleCopyAll} style={{ flex: 1, justifyContent: 'center' }}>
+            {copied ? <Check size={14} color="var(--color-success)" aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
             <span>{copied ? 'Copied All!' : 'Copy to Clipboard'}</span>
           </button>
         </div>
 
         <div style={{ textAlign: 'right' }}>
-          <button className="btn-secondary" onClick={onClose} style={{ padding: '6px 16px', fontSize: '0.8rem' }}>
+          <button className="btn-secondary btn-sm" onClick={onClose}>
             Close
           </button>
         </div>
