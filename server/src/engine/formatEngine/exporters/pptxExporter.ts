@@ -17,20 +17,27 @@ export interface PresentationInput {
 }
 
 export class PptxExporter {
-  async generatePptxBuffer(input: PresentationInput, styleConfig: StyleConfig = STYLE_PRESETS.PROFESSIONAL): Promise<Buffer> {
+  async generatePptxBuffer(
+    input: PresentationInput,
+    styleConfig: StyleConfig = STYLE_PRESETS.PROFESSIONAL
+  ): Promise<Buffer> {
     const pptx = new PptxGenJS();
     pptx.layout = 'LAYOUT_16x9';
 
-    // Slide 1: Title Slide
-    const titleSlide = pptx.addSlide();
-    titleSlide.background = { color: '0F172A' };
+    const primaryColor = '7A173D';
+    const textColor = '3D1324';
+    const accentColor = '16805B';
 
-    titleSlide.addText(input.title, {
+    // ── Slide 1: Title Slide ──────────────────────────────────
+    const titleSlide = pptx.addSlide();
+    titleSlide.background = { color: '7A173D' };
+
+    titleSlide.addText(input.title || 'ContentSpine Presentation', {
       x: 0.8,
-      y: 2.2,
+      y: 2.0,
       w: '85%',
-      h: 1.5,
-      fontSize: 36,
+      h: 1.6,
+      fontSize: 34,
       bold: true,
       color: 'FFFFFF',
       fontFace: 'Helvetica',
@@ -42,99 +49,139 @@ export class PptxExporter {
         y: 3.8,
         w: '85%',
         h: 0.8,
-        fontSize: 20,
-        color: '94A3B8',
+        fontSize: 18,
+        color: 'F8E8EE',
         fontFace: 'Helvetica',
       });
     }
 
-    titleSlide.addText('ContentSpine AI — Fact Lock Verified Presentation', {
+    titleSlide.addText('🔒 ContentSpine AI — Fact-Locked Verified Presentation', {
       x: 0.8,
-      y: 6.5,
+      y: 6.4,
       w: '85%',
       h: 0.4,
       fontSize: 12,
-      color: '64748B',
+      color: 'E9C9D5',
+      fontFace: 'Helvetica',
     });
 
-    // Content Slides
-    for (const slideData of input.slides) {
-      const slide = pptx.addSlide();
-      slide.background = { color: 'F8FAFC' };
+    // ── Process Content Slides (With Auto-Splitting) ─────────
+    const MAX_BULLETS_PER_SLIDE = 5;
 
-      // Header Bar
-      slide.addText(slideData.title, {
-        x: 0.6,
-        y: 0.5,
-        w: '90%',
-        h: 0.8,
-        fontSize: 24,
-        bold: true,
-        color: '1E3A8A',
-        fontFace: 'Helvetica',
-      });
+    for (const rawSlide of input.slides || []) {
+      const bullets = rawSlide.bulletPoints || [];
+      const totalChunks = Math.max(1, Math.ceil(bullets.length / MAX_BULLETS_PER_SLIDE));
 
-      let currentY = 1.6;
+      for (let chunkIdx = 0; chunkIdx < totalChunks; chunkIdx++) {
+        const slide = pptx.addSlide();
+        slide.background = { color: 'FFFFFF' };
 
-      // Bullet Points
-      if (slideData.bulletPoints && slideData.bulletPoints.length > 0) {
-        const bullets = slideData.bulletPoints.map((bp) => ({
-          text: bp,
-          options: { fontSize: 16, color: '334155', bullet: true, spaceAfter: 12 },
-        }));
+        const isContinuation = chunkIdx > 0;
+        const slideTitle = isContinuation ? `${rawSlide.title} (cont.)` : rawSlide.title;
 
-        slide.addText(bullets, {
-          x: 0.8,
-          y: currentY,
-          w: '85%',
-          h: 3.5,
+        // Top Header Accent Line
+        slide.addShape('rect' as any, {
+          x: 0.6,
+          y: 0.4,
+          w: 12.1,
+          h: 0.05,
+          fill: { color: primaryColor },
+        });
+
+        // Header Title
+        slide.addText(slideTitle, {
+          x: 0.6,
+          y: 0.55,
+          w: '75%',
+          h: 0.8,
+          fontSize: 22,
+          bold: true,
+          color: primaryColor,
           fontFace: 'Helvetica',
         });
-        currentY += 3.2;
-      }
 
-      // Callout Box
-      if (slideData.callout) {
-        slide.addText(`📌 ${slideData.callout}`, {
-          x: 0.8,
-          y: Math.min(currentY, 4.8),
-          w: '85%',
-          h: 0.9,
-          fontSize: 14,
+        // Verified Badge Top Right
+        slide.addText('🔒 Fact-Locked', {
+          x: 10.2,
+          y: 0.6,
+          w: 2.5,
+          h: 0.4,
+          fontSize: 11,
           bold: true,
-          color: '1E40AF',
-          fill: { color: 'EFF6FF' },
-          line: { color: '93C5FD', width: 1 },
-          align: 'left',
+          color: accentColor,
+          fill: { color: 'E8F7F0' },
+          align: 'center',
+          fontFace: 'Helvetica',
         });
-      }
 
-      // Table Data
-      if (slideData.tableData && slideData.tableData.headers.length > 0) {
-        const tableRows = [
-          slideData.tableData.headers.map((h) => ({
-            text: h,
-            options: { fill: '1E3A8A', color: 'FFFFFF', bold: true, fontSize: 13 },
-          })),
-          ...slideData.tableData.rows.map((r) =>
-            r.map((c) => ({
-              text: c,
-              options: { fill: 'FFFFFF', color: '334155', fontSize: 12 },
-            }))
-          ),
-        ];
+        let currentY = 1.6;
 
-        slide.addTable(tableRows as any, {
-          x: 0.8,
-          y: 2.0,
-          w: 8.4,
-          colW: [2.8, 2.8, 2.8],
-        });
-      }
+        // Bullet Points Chunk
+        const bulletChunk = bullets.slice(
+          chunkIdx * MAX_BULLETS_PER_SLIDE,
+          (chunkIdx + 1) * MAX_BULLETS_PER_SLIDE
+        );
 
-      // Speaker Notes
-      if (slideData.speakerNotes) {
-        slide.addNotes(slideData.speakerNotes);
+        if (bulletChunk.length > 0) {
+          const formattedBullets = bulletChunk.map((bp) => ({
+            text: bp.replace(/^[-*•]\s*/, ''),
+            options: { fontSize: 15, color: textColor, bullet: { code: '2022' }, spaceAfter: 10 },
+          }));
+
+          slide.addText(formattedBullets, {
+            x: 0.8,
+            y: currentY,
+            w: '88%',
+            h: 3.6,
+            fontFace: 'Helvetica',
+          });
+          currentY += 3.4;
+        }
+
+        // Callout Box (Only on first chunk slide)
+        if (rawSlide.callout && !isContinuation) {
+          slide.addText(`📌 ${rawSlide.callout}`, {
+            x: 0.8,
+            y: Math.min(currentY, 5.0),
+            w: '88%',
+            h: 0.8,
+            fontSize: 13,
+            bold: true,
+            color: primaryColor,
+            fill: { color: 'F8E8EE' },
+            line: { color: 'E9C9D5', width: 1 },
+            align: 'left',
+            fontFace: 'Helvetica',
+          });
+        }
+
+        // Table Data (Only on first chunk slide)
+        if (rawSlide.tableData && rawSlide.tableData.headers && rawSlide.tableData.headers.length > 0 && !isContinuation) {
+          const tableRows = [
+            rawSlide.tableData.headers.map((h) => ({
+              text: h,
+              options: { fill: primaryColor, color: 'FFFFFF', bold: true, fontSize: 12 },
+            })),
+            ...rawSlide.tableData.rows.map((r) =>
+              r.map((c) => ({
+                text: String(c || ''),
+                options: { fill: 'FFFFFF', color: textColor, fontSize: 11 },
+              }))
+            ),
+          ];
+
+          slide.addTable(tableRows as any, {
+            x: 0.8,
+            y: 2.0,
+            w: 11.5,
+            colW: Array(rawSlide.tableData.headers.length).fill(11.5 / rawSlide.tableData.headers.length),
+          });
+        }
+
+        // Speaker Notes
+        if (rawSlide.speakerNotes) {
+          slide.addNotes(rawSlide.speakerNotes);
+        }
       }
     }
 

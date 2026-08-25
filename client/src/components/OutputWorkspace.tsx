@@ -22,6 +22,7 @@ interface OutputWorkspaceProps {
   outputs: GeneratedOutput[];
   validationReport: ValidationReportData | null;
   onAutoCorrect: () => void;
+  onOpenExport?: (activeTab?: OutputType) => void;
   isFixing: boolean;
 }
 
@@ -29,6 +30,7 @@ export const OutputWorkspace: React.FC<OutputWorkspaceProps> = ({
   outputs,
   validationReport,
   onAutoCorrect,
+  onOpenExport,
   isFixing,
 }) => {
   const [activeTab, setActiveTab] = useState<OutputType>('EXECUTIVE_SUMMARY');
@@ -126,9 +128,15 @@ export const OutputWorkspace: React.FC<OutputWorkspaceProps> = ({
                   <span>{isFixing ? 'Auto-Correcting...' : 'Trigger Auto-Correction Loop'}</span>
                 </button>
               )}
+              {onOpenExport && (
+                <button className="btn-primary" onClick={() => onOpenExport(activeTab)}>
+                  <Download size={16} />
+                  <span>Export Deliverable ({activeTab.replace(/_/g, ' ')})</span>
+                </button>
+              )}
               <button className="btn-secondary" onClick={handleExportJSON}>
                 <Download size={16} />
-                <span>Export Deliverables (JSON)</span>
+                <span>Export Package (JSON)</span>
               </button>
             </div>
           </div>

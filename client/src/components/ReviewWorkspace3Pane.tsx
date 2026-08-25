@@ -41,7 +41,7 @@ interface ReviewWorkspace3PaneProps {
   onAutoCorrect: () => void;
   onRegenerateOutput: (type: OutputType) => void;
   onInjectTestErrors?: (injections: Array<{ outputType: OutputType; find: string; replace: string }>) => void;
-  onOpenExport: () => void;
+  onOpenExport: (activeTab?: OutputType) => void;
   isFixing?: boolean;
   autoFixAttempt?: number;
 }
@@ -399,7 +399,7 @@ export const ReviewWorkspace3Pane: React.FC<ReviewWorkspace3PaneProps> = ({
                   </button>
                   <button
                     role="menuitem"
-                    onClick={() => { setIsExportMenuOpen(false); onOpenExport(); }}
+                    onClick={() => { setIsExportMenuOpen(false); onOpenExport(selectedType); }}
                     style={{
                       width: '100%',
                       textAlign: 'left',

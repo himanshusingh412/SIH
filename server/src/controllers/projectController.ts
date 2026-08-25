@@ -272,20 +272,60 @@ export async function regenerateSingleOutput(req: Request, res: Response) {
 }
 
 /**
- * Real DOCX Export Endpoint: GET /api/projects/:id/export/docx
+ * Real DOCX Export Endpoint: GET /api/projects/:id/export/docx?outputType=...
  */
 export async function exportDocxHandler(req: Request, res: Response) {
   try {
     const projectId = getParam(req.params.id || req.params.projectId);
+    const outputType = ((req.query.outputType || req.query.type || '') as string).trim().toUpperCase();
+
     const project = await service.getProject(projectId);
     if (!project) return sendError(res, 'Project not found', 404);
 
     const spine = await service.getContentSpine(projectId);
-    const structInput = formatEngine.buildStructuredInputFromSpine(spine as any, project.title);
+    const outputs = await service.getProjectOutputs(projectId);
+
+    const buildOutputDTO = (outputRecord: any) => {
+      if (!outputRecord) return null;
+      const latestVersion = outputRecord.versions?.[0];
+      const content = latestVersion?.content || outputRecord.content || '';
+      const title = outputRecord.title || latestVersion?.title || `${project.title} — ${outputRecord.outputType}`;
+      const audienceName = typeof outputRecord.audienceProfile === 'string'
+        ? outputRecord.audienceProfile
+        : outputRecord.audienceProfile?.name || 'Executive';
+
+      return {
+        outputType: outputRecord.outputType,
+        title,
+        content,
+        audienceProfile: audienceName,
+        isConsistent: outputRecord.isConsistent ?? true,
+      };
+    };
+
+    let targetOutput = outputs.find((o) => o.outputType === outputType);
+    if (!targetOutput && outputs.length > 0) {
+      targetOutput = outputs.find((o) => o.outputType === 'EXECUTIVE_SUMMARY') || outputs[0];
+    }
+
+    const structInput = formatEngine.buildStructuredInputFromOutput(
+      buildOutputDTO(targetOutput),
+      spine,
+      project.title
+    );
+
     const { buffer, mimeType } = await formatEngine.exportDocx(structInput);
 
+    if (!buffer || buffer.length === 0) {
+      return sendError(res, 'Generated DOCX export file is empty', 500);
+    }
+
+    const cleanTitle = (project.title || 'ContentSpine').replace(/[^a-zA-Z0-9_\-]/g, '_');
+    const typeLabel = (targetOutput?.outputType || 'Deliverable').replace(/_/g, '_');
+    const filename = `ContentSpine_${cleanTitle}_${typeLabel}.docx`;
+
     res.setHeader('Content-Type', mimeType);
-    res.setHeader('Content-Disposition', `attachment; filename="${project.title.replace(/[^a-zA-Z0-9]/g, '_')}.docx"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     return res.send(buffer);
   } catch (err: any) {
     return sendError(res, err.message || 'DOCX export failed', 500);
@@ -293,20 +333,60 @@ export async function exportDocxHandler(req: Request, res: Response) {
 }
 
 /**
- * Real PDF Export Endpoint: GET /api/projects/:id/export/pdf
+ * Real PDF Export Endpoint: GET /api/projects/:id/export/pdf?outputType=...
  */
 export async function exportPdfHandler(req: Request, res: Response) {
   try {
     const projectId = getParam(req.params.id || req.params.projectId);
+    const outputType = ((req.query.outputType || req.query.type || '') as string).trim().toUpperCase();
+
     const project = await service.getProject(projectId);
     if (!project) return sendError(res, 'Project not found', 404);
 
     const spine = await service.getContentSpine(projectId);
-    const structInput = formatEngine.buildStructuredInputFromSpine(spine as any, project.title);
+    const outputs = await service.getProjectOutputs(projectId);
+
+    const buildOutputDTO = (outputRecord: any) => {
+      if (!outputRecord) return null;
+      const latestVersion = outputRecord.versions?.[0];
+      const content = latestVersion?.content || outputRecord.content || '';
+      const title = outputRecord.title || latestVersion?.title || `${project.title} — ${outputRecord.outputType}`;
+      const audienceName = typeof outputRecord.audienceProfile === 'string'
+        ? outputRecord.audienceProfile
+        : outputRecord.audienceProfile?.name || 'Executive';
+
+      return {
+        outputType: outputRecord.outputType,
+        title,
+        content,
+        audienceProfile: audienceName,
+        isConsistent: outputRecord.isConsistent ?? true,
+      };
+    };
+
+    let targetOutput = outputs.find((o) => o.outputType === outputType);
+    if (!targetOutput && outputs.length > 0) {
+      targetOutput = outputs.find((o) => o.outputType === 'EXECUTIVE_SUMMARY') || outputs[0];
+    }
+
+    const structInput = formatEngine.buildStructuredInputFromOutput(
+      buildOutputDTO(targetOutput),
+      spine,
+      project.title
+    );
+
     const { buffer, mimeType } = await formatEngine.exportPdf(structInput);
 
+    if (!buffer || buffer.length === 0) {
+      return sendError(res, 'Generated PDF export file is empty', 500);
+    }
+
+    const cleanTitle = (project.title || 'ContentSpine').replace(/[^a-zA-Z0-9_\-]/g, '_');
+    const typeLabel = (targetOutput?.outputType || 'Deliverable').replace(/_/g, '_');
+    const filename = `ContentSpine_${cleanTitle}_${typeLabel}.pdf`;
+
     res.setHeader('Content-Type', mimeType);
-    res.setHeader('Content-Disposition', `attachment; filename="${project.title.replace(/[^a-zA-Z0-9]/g, '_')}.pdf"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     return res.send(buffer);
   } catch (err: any) {
     return sendError(res, err.message || 'PDF export failed', 500);
@@ -314,35 +394,60 @@ export async function exportPdfHandler(req: Request, res: Response) {
 }
 
 /**
- * Real PPTX Presentation Export Endpoint: GET /api/projects/:id/export/pptx
+ * Real PPTX Presentation Export Endpoint: GET /api/projects/:id/export/pptx?outputType=...
  */
 export async function exportPptxHandler(req: Request, res: Response) {
   try {
     const projectId = getParam(req.params.id || req.params.projectId);
+    const outputType = ((req.query.outputType || req.query.type || '') as string).trim().toUpperCase();
+
     const project = await service.getProject(projectId);
     if (!project) return sendError(res, 'Project not found', 404);
 
     const spine: any = await service.getContentSpine(projectId);
+    const outputs = await service.getProjectOutputs(projectId);
 
-    const pptInput = {
-      title: project.title,
-      subtitle: 'Verified Presentation — ContentSpine AI Engine',
-      slides: [
-        {
-          title: 'Executive Summary',
-          bulletPoints: [spine.summary],
-        },
-        {
-          title: 'Fact Lock Verification Layer',
-          bulletPoints: (spine.facts || spine.factLocks || []).map((f: any) => `${f.factKey}: ${f.factValue}`),
-        },
-      ],
+    const buildOutputDTO = (outputRecord: any) => {
+      if (!outputRecord) return null;
+      const latestVersion = outputRecord.versions?.[0];
+      const content = latestVersion?.content || outputRecord.content || '';
+      const title = outputRecord.title || latestVersion?.title || `${project.title} — ${outputRecord.outputType}`;
+      const audienceName = typeof outputRecord.audienceProfile === 'string'
+        ? outputRecord.audienceProfile
+        : outputRecord.audienceProfile?.name || 'Executive';
+
+      return {
+        outputType: outputRecord.outputType,
+        title,
+        content,
+        audienceProfile: audienceName,
+        isConsistent: outputRecord.isConsistent ?? true,
+      };
     };
+
+    let targetOutput = outputs.find((o) => o.outputType === outputType);
+    if (!targetOutput && outputs.length > 0) {
+      targetOutput = outputs.find((o) => o.outputType === 'PRESENTATION') || outputs[0];
+    }
+
+    const pptInput = formatEngine.buildPresentationInputFromOutput(
+      buildOutputDTO(targetOutput),
+      spine,
+      project.title
+    );
 
     const { buffer, mimeType } = await formatEngine.exportPptx(pptInput);
 
+    if (!buffer || buffer.length === 0) {
+      return sendError(res, 'Generated PPTX export file is empty', 500);
+    }
+
+    const cleanTitle = (project.title || 'ContentSpine').replace(/[^a-zA-Z0-9_\-]/g, '_');
+    const typeLabel = (targetOutput?.outputType || 'Presentation').replace(/_/g, '_');
+    const filename = `ContentSpine_${cleanTitle}_${typeLabel}.pptx`;
+
     res.setHeader('Content-Type', mimeType);
-    res.setHeader('Content-Disposition', `attachment; filename="${project.title.replace(/[^a-zA-Z0-9]/g, '_')}.pptx"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     return res.send(buffer);
   } catch (err: any) {
     return sendError(res, err.message || 'PPTX export failed', 500);
@@ -350,29 +455,60 @@ export async function exportPptxHandler(req: Request, res: Response) {
 }
 
 /**
- * Real Data Exports: GET /api/projects/:id/export/json, csv, xml, yaml
+ * Real Data Exports: GET /api/projects/:id/export/data?format=json, csv, xml, yaml&outputType=...
  */
 export async function exportDataHandler(req: Request, res: Response) {
   try {
     const projectId = getParam(req.params.id || req.params.projectId);
     const formatParam = req.query.format;
     const format = (typeof formatParam === 'string' ? formatParam : 'json').toLowerCase();
+    const outputType = ((req.query.outputType || req.query.type || '') as string).trim().toUpperCase();
 
     const project = await service.getProject(projectId);
     if (!project) return sendError(res, 'Project not found', 404);
 
     const spine: any = await service.getContentSpine(projectId);
-    const exportData = {
-      title: project.title,
-      summary: spine.summary,
-      lockedFacts: spine.facts || spine.factLocks || [],
-      events: spine.events || [],
-      recommendations: spine.recommendations || [],
+    const outputs = await service.getProjectOutputs(projectId);
+
+    const buildOutputDTO = (outputRecord: any) => {
+      if (!outputRecord) return null;
+      const latestVersion = outputRecord.versions?.[0];
+      const content = latestVersion?.content || outputRecord.content || '';
+      const title = outputRecord.title || latestVersion?.title || `${project.title} — ${outputRecord.outputType}`;
+      const audienceName = typeof outputRecord.audienceProfile === 'string'
+        ? outputRecord.audienceProfile
+        : outputRecord.audienceProfile?.name || 'Executive';
+
+      return {
+        outputType: outputRecord.outputType,
+        title,
+        content,
+        audienceProfile: audienceName,
+        isConsistent: outputRecord.isConsistent ?? true,
+      };
     };
+
+    let targetOutput = outputs.find((o) => o.outputType === outputType);
+    const targetDTO = buildOutputDTO(targetOutput);
+
+    const exportData = {
+      projectTitle: project.title,
+      outputType: targetDTO?.outputType || 'ALL_DELIVERABLES',
+      audienceProfile: targetDTO?.audienceProfile || 'Executive',
+      isConsistent: targetDTO?.isConsistent ?? true,
+      deliverableContent: targetDTO?.content || undefined,
+      allOutputs: outputs.map((o) => buildOutputDTO(o)),
+      summary: spine?.summary,
+      lockedFacts: spine?.facts || spine?.factLocks || [],
+      events: spine?.events || [],
+      recommendations: spine?.recommendations || [],
+    };
+
+    const cleanTitle = (project.title || 'ContentSpine').replace(/[^a-zA-Z0-9_\-]/g, '_');
 
     if (format === 'csv') {
       const headers = ['FactKey', 'FactValue', 'Category', 'IsLocked'];
-      const rows = (spine.facts || spine.factLocks || []).map((f: any) => [
+      const rows = (spine?.facts || spine?.factLocks || []).map((f: any) => [
         f.factKey || f.key || '',
         f.factValue || f.value || '',
         f.category || '',
@@ -380,28 +516,28 @@ export async function exportDataHandler(req: Request, res: Response) {
       ]);
       const resData = formatEngine.exportCsv(headers, rows);
       res.setHeader('Content-Type', resData.mimeType);
-      res.setHeader('Content-Disposition', `attachment; filename="${project.title.replace(/[^a-zA-Z0-9]/g, '_')}.csv"`);
+      res.setHeader('Content-Disposition', `attachment; filename="ContentSpine_${cleanTitle}.csv"`);
       return res.send(resData.content);
     }
 
     if (format === 'xml') {
       const resData = await formatEngine.exportXml('ContentSpineExport', exportData);
       res.setHeader('Content-Type', resData.mimeType);
-      res.setHeader('Content-Disposition', `attachment; filename="${project.title.replace(/[^a-zA-Z0-9]/g, '_')}.xml"`);
+      res.setHeader('Content-Disposition', `attachment; filename="ContentSpine_${cleanTitle}.xml"`);
       return res.send(resData.content);
     }
 
     if (format === 'yaml') {
       const resData = formatEngine.exportYaml(exportData);
       res.setHeader('Content-Type', resData.mimeType);
-      res.setHeader('Content-Disposition', `attachment; filename="${project.title.replace(/[^a-zA-Z0-9]/g, '_')}.yaml"`);
+      res.setHeader('Content-Disposition', `attachment; filename="ContentSpine_${cleanTitle}.yaml"`);
       return res.send(resData.content);
     }
 
     // Default JSON
     const resData = formatEngine.exportJson(exportData);
     res.setHeader('Content-Type', resData.mimeType);
-    res.setHeader('Content-Disposition', `attachment; filename="${project.title.replace(/[^a-zA-Z0-9]/g, '_')}.json"`);
+    res.setHeader('Content-Disposition', `attachment; filename="ContentSpine_${cleanTitle}.json"`);
     return res.send(resData.content);
   } catch (err: any) {
     return sendError(res, err.message || 'Data export failed', 500);

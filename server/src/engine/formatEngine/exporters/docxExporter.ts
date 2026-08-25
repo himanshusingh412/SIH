@@ -9,6 +9,11 @@ import {
   TableCell,
   WidthType,
   AlignmentType,
+  Header,
+  Footer,
+  PageNumber,
+  ShadingType,
+  BorderStyle,
 } from 'docx';
 import { StyleConfig, STYLE_PRESETS } from '../styleEngine';
 
@@ -29,20 +34,34 @@ export interface StructuredDocumentInput {
 }
 
 export class DocxExporter {
-  async generateDocxBuffer(input: StructuredDocumentInput, styleConfig: StyleConfig = STYLE_PRESETS.PROFESSIONAL): Promise<Buffer> {
+  async generateDocxBuffer(
+    input: StructuredDocumentInput,
+    styleConfig: StyleConfig = STYLE_PRESETS.PROFESSIONAL
+  ): Promise<Buffer> {
     const children: any[] = [];
+    const primaryColor = '7A173D';
+    const textColor = '3D1324';
+    const secondaryColor = '8A6875';
+    const accentColor = '16805B';
 
-    // Title
+    // ── Title ──────────────────────────────────────────────
     children.push(
       new Paragraph({
-        text: input.title,
-        heading: HeadingLevel.HEADING_1,
+        children: [
+          new TextRun({
+            text: input.title || 'ContentSpine Deliverable Report',
+            bold: true,
+            size: 48, // 24pt
+            color: primaryColor,
+            font: 'Arial',
+          }),
+        ],
         alignment: AlignmentType.LEFT,
-        spacing: { after: 200 },
+        spacing: { after: 120 },
       })
     );
 
-    // Subtitle / Metadata
+    // ── Subtitle ───────────────────────────────────────────
     if (input.subtitle) {
       children.push(
         new Paragraph({
@@ -50,67 +69,121 @@ export class DocxExporter {
             new TextRun({
               text: input.subtitle,
               italics: true,
-              color: '4B5563',
-              size: 24,
+              color: secondaryColor,
+              size: 24, // 12pt
+              font: 'Arial',
             }),
           ],
-          spacing: { after: 300 },
+          spacing: { after: 200 },
         })
       );
     }
 
+    // ── Metadata Header ────────────────────────────────────
     if (input.metadata && Object.keys(input.metadata).length > 0) {
       const metaRuns: TextRun[] = [];
       for (const [key, val] of Object.entries(input.metadata)) {
         metaRuns.push(
-          new TextRun({ text: `${key}: `, bold: true, size: 18, color: '1E3A8A' }),
-          new TextRun({ text: `${val}   `, size: 18, color: '374151' })
+          new TextRun({ text: `${key.toUpperCase()}: `, bold: true, size: 18, color: primaryColor, font: 'Arial' }),
+          new TextRun({ text: `${val}   |   `, size: 18, color: textColor, font: 'Arial' })
         );
       }
       children.push(
         new Paragraph({
           children: metaRuns,
-          spacing: { after: 300 },
+          spacing: { after: 240 },
         })
       );
     }
 
-    // Process Sections
-    for (const sec of input.sections) {
+    // ── Fact Lock Callout Banner ───────────────────────────
+    children.push(
+      new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({
+                shading: { fill: 'E8F7F0', type: ShadingType.CLEAR },
+                margins: { top: 120, bottom: 120, left: 180, right: 180 },
+                borders: {
+                  top: { style: BorderStyle.SINGLE, size: 4, color: 'B8DEC9' },
+                  bottom: { style: BorderStyle.SINGLE, size: 4, color: 'B8DEC9' },
+                  left: { style: BorderStyle.SINGLE, size: 12, color: accentColor },
+                  right: { style: BorderStyle.SINGLE, size: 4, color: 'B8DEC9' },
+                },
+                children: [
+                  new Paragraph({
+                    children: [
+                      new TextRun({
+                        text: '🔒 FACT-LOCKED INFORMATION  |  ✓ Verified against source  |  ✓ Source trace available',
+                        bold: true,
+                        size: 20, // 10pt
+                        color: accentColor,
+                        font: 'Arial',
+                      }),
+                    ],
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      })
+    );
+
+    children.push(new Paragraph({ text: '', spacing: { after: 240 } }));
+
+    // ── Process Sections ───────────────────────────────────
+    for (const sec of input.sections || []) {
       if (sec.heading) {
         children.push(
           new Paragraph({
-            text: sec.heading,
-            heading: HeadingLevel.HEADING_2,
-            spacing: { before: 240, after: 120 },
+            children: [
+              new TextRun({
+                text: sec.heading,
+                bold: true,
+                size: 32, // 16pt
+                color: primaryColor,
+                font: 'Arial',
+              }),
+            ],
+            spacing: { before: 280, after: 120 },
           })
         );
       }
 
-      if (sec.paragraphs) {
+      if (sec.paragraphs && sec.paragraphs.length > 0) {
         for (const p of sec.paragraphs) {
+          if (!p || !p.trim()) continue;
           children.push(
             new Paragraph({
               children: [
                 new TextRun({
-                  text: p,
-                  size: styleConfig.fontSizeBody * 2, // docx uses half-points
+                  text: p.trim(),
+                  size: 22, // 11pt
+                  color: textColor,
+                  font: 'Arial',
                 }),
               ],
-              spacing: { after: 160 },
+              spacing: { after: 140, line: 276 },
             })
           );
         }
       }
 
-      if (sec.bulletPoints) {
+      if (sec.bulletPoints && sec.bulletPoints.length > 0) {
         for (const bp of sec.bulletPoints) {
+          if (!bp || !bp.trim()) continue;
+          const cleanBp = bp.replace(/^[-*•]\s*/, '').trim();
           children.push(
             new Paragraph({
               children: [
                 new TextRun({
-                  text: ` ${bp}`,
-                  size: styleConfig.fontSizeBody * 2,
+                  text: cleanBp,
+                  size: 22,
+                  color: textColor,
+                  font: 'Arial',
                 }),
               ],
               bullet: { level: 0 },
@@ -122,21 +195,43 @@ export class DocxExporter {
 
       if (sec.callout) {
         children.push(
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: `📌 ${sec.callout}`,
-                bold: true,
-                color: '1E3A8A',
-                size: styleConfig.fontSizeBody * 2,
+          new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            rows: [
+              new TableRow({
+                children: [
+                  new TableCell({
+                    shading: { fill: 'F8E8EE', type: ShadingType.CLEAR },
+                    margins: { top: 120, bottom: 120, left: 180, right: 180 },
+                    borders: {
+                      top: { style: BorderStyle.SINGLE, size: 4, color: 'E9C9D5' },
+                      bottom: { style: BorderStyle.SINGLE, size: 4, color: 'E9C9D5' },
+                      left: { style: BorderStyle.SINGLE, size: 12, color: primaryColor },
+                      right: { style: BorderStyle.SINGLE, size: 4, color: 'E9C9D5' },
+                    },
+                    children: [
+                      new Paragraph({
+                        children: [
+                          new TextRun({
+                            text: `📌 ${sec.callout}`,
+                            bold: true,
+                            size: 20,
+                            color: primaryColor,
+                            font: 'Arial',
+                          }),
+                        ],
+                      }),
+                    ],
+                  }),
+                ],
               }),
             ],
-            spacing: { before: 200, after: 200 },
           })
         );
+        children.push(new Paragraph({ text: '', spacing: { after: 180 } }));
       }
 
-      if (sec.tableData && sec.tableData.headers.length > 0) {
+      if (sec.tableData && sec.tableData.headers && sec.tableData.headers.length > 0) {
         const tableRows: TableRow[] = [];
 
         // Header Row
@@ -147,10 +242,12 @@ export class DocxExporter {
                 new TableCell({
                   children: [
                     new Paragraph({
-                      children: [new TextRun({ text: h, bold: true, color: 'FFFFFF' })],
+                      children: [new TextRun({ text: h, bold: true, color: 'FFFFFF', size: 19, font: 'Arial' })],
+                      alignment: AlignmentType.LEFT,
                     }),
                   ],
-                  shading: { fill: '1E3A8A' },
+                  shading: { fill: primaryColor, type: ShadingType.CLEAR },
+                  margins: { top: 100, bottom: 100, left: 140, right: 140 },
                   width: { size: 100 / sec.tableData!.headers.length, type: WidthType.PERCENTAGE },
                 })
             ),
@@ -158,13 +255,28 @@ export class DocxExporter {
         );
 
         // Data Rows
-        for (const row of sec.tableData.rows) {
+        for (let rIdx = 0; rIdx < sec.tableData.rows.length; rIdx++) {
+          const row = sec.tableData.rows[rIdx];
+          const bgShading = rIdx % 2 === 0 ? 'FFFFFF' : 'FFF8FA';
+
           tableRows.push(
             new TableRow({
               children: row.map(
                 (cell) =>
                   new TableCell({
-                    children: [new Paragraph({ text: cell })],
+                    children: [
+                      new Paragraph({
+                        children: [new TextRun({ text: String(cell || ''), size: 18, color: textColor, font: 'Arial' })],
+                      }),
+                    ],
+                    shading: { fill: bgShading, type: ShadingType.CLEAR },
+                    borders: {
+                      top: { style: BorderStyle.SINGLE, size: 2, color: 'E9C9D5' },
+                      bottom: { style: BorderStyle.SINGLE, size: 2, color: 'E9C9D5' },
+                      left: { style: BorderStyle.SINGLE, size: 2, color: 'E9C9D5' },
+                      right: { style: BorderStyle.SINGLE, size: 2, color: 'E9C9D5' },
+                    },
+                    margins: { top: 80, bottom: 80, left: 140, right: 140 },
                     width: { size: 100 / row.length, type: WidthType.PERCENTAGE },
                   })
               ),
@@ -178,13 +290,57 @@ export class DocxExporter {
             width: { size: 100, type: WidthType.PERCENTAGE },
           })
         );
+
+        children.push(new Paragraph({ text: '', spacing: { after: 200 } }));
       }
     }
 
+    // ── Build Document ─────────────────────────────────────
     const doc = new Document({
       sections: [
         {
-          properties: {},
+          properties: {
+            page: {
+              margin: { top: 1440, bottom: 1440, left: 1440, right: 1440 }, // 1 inch
+            },
+          },
+          footers: {
+            default: new Footer({
+              children: [
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: 'ContentSpine AI  |  Fact-Locked Verified Deliverable   |   Page ',
+                      size: 16,
+                      color: secondaryColor,
+                      font: 'Arial',
+                    }),
+                    new TextRun({
+                      children: [PageNumber.CURRENT],
+                      size: 16,
+                      color: primaryColor,
+                      font: 'Arial',
+                      bold: true,
+                    }),
+                    new TextRun({
+                      text: ' of ',
+                      size: 16,
+                      color: secondaryColor,
+                      font: 'Arial',
+                    }),
+                    new TextRun({
+                      children: [PageNumber.TOTAL_PAGES],
+                      size: 16,
+                      color: primaryColor,
+                      font: 'Arial',
+                      bold: true,
+                    }),
+                  ],
+                  alignment: AlignmentType.RIGHT,
+                }),
+              ],
+            }),
+          },
           children,
         },
       ],

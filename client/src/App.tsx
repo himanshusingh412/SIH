@@ -31,6 +31,7 @@ export function App() {
   const [selectedProvider, setSelectedProvider] = useState<string>('gemini');
   const [activeConversationId, setActiveConversationId] = useState<string | undefined>(undefined);
   const [showExportModal, setShowExportModal] = useState<boolean>(false);
+  const [activeExportTab, setActiveExportTab] = useState<OutputType>('EXECUTIVE_SUMMARY');
   const [autoFixAttempt, setAutoFixAttempt] = useState<number>(0);
   const [selectedOutputTypes, setSelectedOutputTypes] = useState<OutputType[]>([
     'EXECUTIVE_SUMMARY',
@@ -392,7 +393,10 @@ export function App() {
                 }}
                 onRegenerateOutput={(type) => regenerateSingle(type, 'EXECUTIVE', selectedProvider)}
                 onInjectTestErrors={(injections) => injectErrors(injections)}
-                onOpenExport={() => setShowExportModal(true)}
+                onOpenExport={(tab) => {
+                  if (tab) setActiveExportTab(tab);
+                  setShowExportModal(true);
+                }}
                 isFixing={isLoading}
                 autoFixAttempt={autoFixAttempt}
               />
@@ -406,6 +410,7 @@ export function App() {
         <ExportModal
           projectId={projectData?.id}
           projectTitle={projectData?.title}
+          activeOutputType={activeExportTab}
           outputs={outputs}
           onClose={() => setShowExportModal(false)}
         />
