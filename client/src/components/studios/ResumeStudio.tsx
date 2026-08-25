@@ -629,7 +629,47 @@ Requirements:
 
       {/* Tab 1: Resume Builder (Split View: Section-by-Section Editor + Formatted Real-Time Preview) */}
       {activeTab === 'builder' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Dual Entry Path Banner */}
+          <div
+            style={{
+              background: 'linear-gradient(135deg, rgba(136, 14, 79, 0.08) 0%, rgba(248, 187, 208, 0.15) 100%)',
+              border: '1px solid var(--pink-300)',
+              borderRadius: 'var(--radius-lg)',
+              padding: '18px 24px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '20px',
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 'var(--font-sm)', fontWeight: 800, color: 'var(--burgundy-900)', marginBottom: '4px' }}>
+                🚀 Choose How To Start Your Resume
+              </div>
+              <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-secondary)' }}>
+                Build a fresh resume manually or upload an existing PDF, DOCX or TXT file for AI parsing &amp; ATS optimization.
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+              <button
+                className="btn-secondary btn-sm"
+                style={{ background: 'var(--bg-surface)', borderColor: 'var(--pink-300)' }}
+                onClick={() => triggerToast('Manual Resume Builder active — edit fields in panel below')}
+              >
+                <FileText size={14} color="var(--burgundy-700)" /> Build Manually
+              </button>
+              <button
+                className="btn-primary btn-sm"
+                onClick={() => setIsUploadModalOpen(true)}
+              >
+                <Upload size={14} /> Upload Existing Resume
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
           {/* Left Column: Structured Form Editor */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             {/* Personal Details */}
@@ -831,6 +871,7 @@ Requirements:
             </div>
           </div>
         </div>
+      </div>
       )}
 
       {/* Tab 2: ATS Scanner */}
