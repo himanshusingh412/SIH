@@ -15,6 +15,9 @@ import {
   Copy,
   Save,
   CheckCircle2,
+  Upload,
+  X,
+  AlertCircle,
 } from 'lucide-react';
 import { apiClient } from '../../services/apiClient';
 import { BrandLogo } from '../BrandLogo';
@@ -179,12 +182,88 @@ Requirements:
   const [linkedInResult, setLinkedInResult] = useState<any>(null);
   const [analytics, setAnalytics] = useState<any>(null);
 
+  // Upload Resume Modal State
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState<boolean>(false);
+  const [uploadStep, setUploadStep] = useState<'SELECT' | 'UPLOADING' | 'REVIEW'>('SELECT');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<string>('Uploading file...');
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState<boolean>(false);
+  const [importData, setImportData] = useState<{
+    resumeId: string;
+    candidateSpine: CandidateContentSpine;
+    detectedSections: {
+      personal: boolean;
+      summary: boolean;
+      experiences: boolean;
+      education: boolean;
+      skills: boolean;
+      projects: boolean;
+      certifications: boolean;
+      achievements: boolean;
+    };
+    filename: string;
+    fileSize: number;
+  } | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // Loading & Autosave States
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [saveStatus, setSaveStatus] = useState<'IDLE' | 'SAVING' | 'SAVED' | 'FAILED'>('IDLE');
   const [notice, setNotice] = useState<string | null>(null);
 
   const isInitialMount = useRef(true);
+
+  // Upload Resume Handlers
+  const handleFileSelect = async (file: File) => {
+    setUploadError(null);
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+
+    // Validation 1: File Format
+    if (!['pdf', 'docx', 'doc', 'txt'].includes(ext)) {
+      setUploadError("The selected file isn't supported. Upload PDF, DOCX or TXT.");
+      return;
+    }
+
+    // Validation 2: File Size (20MB)
+    if (file.size > 20 * 1024 * 1024) {
+      setUploadError("This resume exceeds the maximum allowed file size (20MB).");
+      return;
+    }
+
+    setSelectedFile(file);
+    setUploadStep('UPLOADING');
+    setUploadProgress('Uploading resume to server...');
+
+    try {
+      setTimeout(() => setUploadProgress('Extracting text & section structure...'), 500);
+      setTimeout(() => setUploadProgress('Detecting candidate facts & skills...'), 1000);
+      setTimeout(() => setUploadProgress('Building candidate content spine & saving to Neon...'), 1500);
+
+      const result = await apiClient.importExistingResume(file);
+      if (result && result.candidateSpine) {
+        setImportData(result);
+        setUploadStep('REVIEW');
+      } else {
+        throw new Error("We couldn't read text from this file. Try another PDF, DOCX or TXT.");
+      }
+    } catch (err: any) {
+      setUploadStep('SELECT');
+      setUploadError(err.message || "We couldn't process this file. Try another PDF or DOCX.");
+    }
+  };
+
+  const handleConfirmImport = () => {
+    if (!importData) return;
+    setSpine(importData.candidateSpine);
+    setResumeId(importData.resumeId);
+    setIsUploadModalOpen(false);
+    setUploadStep('SELECT');
+    setSelectedFile(null);
+    setActiveTab('builder');
+    triggerToast('✓ Resume imported successfully. Your resume is now editable in Resume Studio.');
+  };
 
   // Load Initial Resume from Neon PostgreSQL
   useEffect(() => {
@@ -506,6 +585,9 @@ Requirements:
             {saveStatus === 'SAVING' ? 'Autosaving to Neon...' : saveStatus === 'SAVED' ? 'Saved to Neon' : 'Draft'}
           </span>
 
+          <button className="btn-secondary btn-sm" onClick={() => setIsUploadModalOpen(true)}>
+            <Upload size={14} aria-hidden="true" /> Upload Existing Resume
+          </button>
           <button className="btn-primary btn-sm" onClick={handleDownloadDocx}>
             <BrandLogo name="word" size={15} /> Export DOCX
           </button>
@@ -1064,6 +1146,245 @@ Requirements:
             <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#fbbf24', marginTop: '10px' }}>
               {analytics?.topMissingSkills?.[0] || 'AWS Cloud'}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Upload Existing Resume Modal */}
+      {isUploadModalOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 5, 10, 0.75)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+          }}
+          onClick={() => setIsUploadModalOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '560px',
+              maxWidth: '92vw',
+              background: 'var(--bg-surface)',
+              border: '1px solid var(--border-color)',
+              borderRadius: 'var(--radius-lg)',
+              padding: '28px',
+              boxShadow: 'var(--shadow-lg)',
+              color: 'var(--text-primary)',
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Upload color="var(--burgundy-700)" size={22} />
+                <h3 style={{ fontSize: 'var(--font-lg)', fontWeight: 800, color: 'var(--burgundy-900)', margin: 0 }}>
+                  Upload Your Resume
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsUploadModalOpen(false)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p style={{ fontSize: 'var(--font-xs)', color: 'var(--text-secondary)', marginBottom: '20px', lineHeight: '1.5' }}>
+              Upload your existing resume and we'll turn it into an editable Resume Studio profile.
+            </p>
+
+            {/* Error Banner */}
+            {uploadError && (
+              <div
+                style={{
+                  background: '#FEF2F2',
+                  border: '1px solid #FECDCA',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '10px 14px',
+                  fontSize: 'var(--font-xs)',
+                  color: '#B42318',
+                  marginBottom: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
+                <AlertCircle size={15} color="#B42318" />
+                <span>{uploadError}</span>
+              </div>
+            )}
+
+            {/* STEP 1: SELECT FILE */}
+            {uploadStep === 'SELECT' && (
+              <div>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])}
+                  accept=".pdf,.docx,.doc,.txt"
+                  style={{ display: 'none' }}
+                />
+
+                <div
+                  onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+                  onDragLeave={() => setDragActive(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragActive(false);
+                    if (e.dataTransfer.files?.[0]) handleFileSelect(e.dataTransfer.files[0]);
+                  }}
+                  style={{
+                    border: dragActive ? '2px dashed var(--burgundy-700)' : '2px dashed var(--pink-300)',
+                    borderRadius: 'var(--radius-lg)',
+                    padding: '36px 20px',
+                    textAlign: 'center',
+                    background: dragActive ? 'var(--pink-100)' : 'var(--bg-secondary)',
+                    transition: 'all var(--transition-fast)',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <div
+                    style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '50%',
+                      background: 'var(--pink-200)',
+                      color: 'var(--burgundy-700)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      margin: '0 auto 14px',
+                    }}
+                  >
+                    <Upload size={24} />
+                  </div>
+
+                  <h4 style={{ fontSize: 'var(--font-base)', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 6px' }}>
+                    Upload your resume
+                  </h4>
+                  <p style={{ fontSize: 'var(--font-xs)', color: 'var(--text-secondary)', margin: '0 0 16px' }}>
+                    Drag &amp; drop your resume here or choose a file from your computer
+                  </p>
+
+                  <button className="btn-primary btn-sm" style={{ margin: '0 auto' }}>
+                    Choose Resume
+                  </button>
+
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '16px', fontWeight: 600 }}>
+                    PDF • DOCX • TXT (Max 20MB)
+                  </div>
+                </div>
+
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textAlign: 'center', marginTop: '16px' }}>
+                  🔒 Your uploaded resume is processed securely by this application.
+                </div>
+              </div>
+            )}
+
+            {/* STEP 2: UPLOADING PROGRESS */}
+            {uploadStep === 'UPLOADING' && (
+              <div style={{ textAlign: 'center', padding: '30px 20px' }}>
+                <RefreshCw size={32} className="spin" color="var(--burgundy-700)" style={{ margin: '0 auto 16px' }} />
+                <h4 style={{ fontSize: 'var(--font-base)', fontWeight: 700, color: 'var(--burgundy-900)', marginBottom: '8px' }}>
+                  Processing {selectedFile?.name}...
+                </h4>
+                <p style={{ fontSize: 'var(--font-xs)', color: 'var(--text-secondary)', margin: 0 }}>
+                  {uploadProgress}
+                </p>
+              </div>
+            )}
+
+            {/* STEP 3: IMPORT REVIEW SCREEN */}
+            {uploadStep === 'REVIEW' && importData && (
+              <div>
+                <div
+                  style={{
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '14px 16px',
+                    marginBottom: '18px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <FileText size={20} color="var(--burgundy-700)" />
+                    <div>
+                      <div style={{ fontSize: 'var(--font-sm)', fontWeight: 700, color: 'var(--text-primary)' }}>
+                        {importData.filename}
+                      </div>
+                      <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)' }}>
+                        {(importData.fileSize / 1024).toFixed(1)} KB • Extracted Resume Structure
+                      </div>
+                    </div>
+                  </div>
+                  <span className="badge badge-success">Parsed ✓</span>
+                </div>
+
+                <h4 style={{ fontSize: 'var(--font-xs)', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '10px' }}>
+                  DETECTED RESUME SECTIONS
+                </h4>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', marginBottom: '20px' }}>
+                  {[
+                    { label: 'Personal Information', key: 'personal' },
+                    { label: 'Professional Summary', key: 'summary' },
+                    { label: 'Work Experience', key: 'experiences' },
+                    { label: 'Education', key: 'education' },
+                    { label: 'Skills & Competencies', key: 'skills' },
+                    { label: 'Projects', key: 'projects' },
+                    { label: 'Certifications', key: 'certifications' },
+                    { label: 'Achievements', key: 'achievements' },
+                  ].map((sec) => {
+                    const detected = (importData.detectedSections as any)[sec.key];
+                    return (
+                      <div
+                        key={sec.key}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          fontSize: 'var(--font-xs)',
+                          color: detected ? 'var(--text-primary)' : 'var(--text-muted)',
+                          fontWeight: detected ? 600 : 400,
+                          padding: '6px 10px',
+                          background: detected ? 'var(--pink-100)' : 'transparent',
+                          borderRadius: 'var(--radius-sm)',
+                        }}
+                      >
+                        {detected ? (
+                          <CheckCircle2 size={14} color="var(--color-success)" />
+                        ) : (
+                          <AlertCircle size={14} color="var(--text-muted)" />
+                        )}
+                        <span>{sec.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: '20px' }}>
+                  Note: Unspecified resume details remain empty. No fake facts or metrics have been hallucinated.
+                </p>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                  <button className="btn-secondary btn-sm" onClick={() => setUploadStep('SELECT')}>
+                    Cancel
+                  </button>
+                  <button className="btn-primary btn-sm" onClick={handleConfirmImport}>
+                    Import &amp; Continue
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

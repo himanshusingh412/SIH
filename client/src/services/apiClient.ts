@@ -320,6 +320,31 @@ export const apiClient = {
     }),
 
   // Resume Intelligence & ATS Studio Endpoints
+  importExistingResume: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return request<{
+      resumeId: string;
+      resume: any;
+      candidateSpine: any;
+      detectedSections: {
+        personal: boolean;
+        summary: boolean;
+        experiences: boolean;
+        education: boolean;
+        skills: boolean;
+        projects: boolean;
+        certifications: boolean;
+        achievements: boolean;
+      };
+      filename: string;
+      fileSize: number;
+    }>('/resume/import', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
   createOrParseResume: (rawText: string, title?: string, projectId?: string, resumeId?: string) =>
     request<{ resumeId: string; resume: any; candidateSpine: any }>('/resume/create', {
       method: 'POST',
