@@ -47,6 +47,8 @@ export function App() {
     isLoading,
     error,
     setError,
+    notice,
+    setNotice,
     loadDemo,
     loadProject,
     ingestDoc,
@@ -250,7 +252,13 @@ export function App() {
     : null;
 
   return (
-    <RootLayout error={error} onClearError={() => setError(null)} isLoading={isLoading}>
+    <RootLayout
+      error={error}
+      onClearError={() => setError(null)}
+      notice={notice}
+      onClearNotice={() => setNotice(null)}
+      isLoading={isLoading}
+    >
       <div style={{ display: 'flex', minHeight: '100vh' }}>
         {/* Left Sidebar */}
         <SidebarNav

@@ -9,6 +9,23 @@ export function useProject() {
   const [projectData, setProjectData] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  // Non-blocking amber banner: the run succeeded but something degraded
+  // (a fallback provider served part of it, or Gemini was rate-limited).
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const describeAiStatus = (ai: any): string | null => {
+    if (!ai || !ai.degraded) return null;
+    const count = ai.degradedOutputCount || 0;
+    const retry = ai.retryAfterSeconds ? ` Gemini should recover in ~${ai.retryAfterSeconds}s.` : '';
+    if (ai.rateLimited) {
+      return `Gemini hit its rate limit during generation, so ${
+        count > 0 ? `${count} deliverable(s)` : 'part of this run'
+      } came from the offline fallback engine. Everything was still saved — use Regenerate on any deliverable once Gemini recovers.${retry}`;
+    }
+    return `Part of this run was served by a fallback provider${
+      ai.provider ? ` (${ai.provider})` : ''
+    }. ${ai.reason || ''} Everything was saved; regenerate any deliverable to retry with Gemini.`.trim();
+  };
 
   // Sync active project ID to localStorage
   const updateActiveProjectId = (id: string | null) => {
@@ -60,6 +77,8 @@ export function useProject() {
     async (category: InputCategory, file: File | null, rawText: string) => {
       setIsLoading(true);
       setError(null);
+      setNotice(null);
+      let pId: string | null = null;
       try {
         let title = file ? file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ') : '';
         if (!title && rawText) {
@@ -74,15 +93,40 @@ export function useProject() {
           category,
           contentText: rawText,
         });
-        const pId = createRes.project.id;
+        pId = createRes.project.id;
 
-        const ingestRes = await apiClient.ingestDocument(pId, category, file, rawText);
+        const ingestRes = await apiClient.ingestDocument(pId!, category, file, rawText);
         updateActiveProjectId(pId);
         if (ingestRes && ingestRes.project) {
           setProjectData(ingestRes.project);
         }
+        setNotice(describeAiStatus((ingestRes as any)?.aiStatus));
         return ingestRes;
       } catch (err: any) {
+        // The project row already exists. Rather than dropping the user back on
+        // an empty upload form (and losing the work that DID persist), recover
+        // whatever landed in the database and open it.
+        if (pId) {
+          try {
+            const recovered = await apiClient.getProject(pId);
+            const project = recovered?.project;
+            const hasContent =
+              (project?.contentSpines?.length || 0) > 0 || (project?.outputs?.length || 0) > 0;
+            if (hasContent) {
+              updateActiveProjectId(pId);
+              setProjectData(project);
+              const retry = err?.retryAfterSeconds ? ` Retry in ~${err.retryAfterSeconds}s.` : '';
+              setNotice(
+                err?.code === 'GEMINI_RATE_LIMITED' || err?.statusCode === 429
+                  ? `Gemini was rate-limited while finishing this upload, so the project opened with what was generated so far.${retry} Use Regenerate to fill in the rest.`
+                  : `This upload finished partially (${err.message}). The Content Spine and any completed deliverables were saved.`
+              );
+              return { projectId: pId, project, partial: true } as any;
+            }
+          } catch {
+            /* fall through to the error banner below */
+          }
+        }
         setError(err.message || 'Failed to ingest document');
         return null;
       } finally {
@@ -113,9 +157,21 @@ export function useProject() {
       setIsLoading(true);
       setError(null);
       try {
-        await apiClient.generateOutputs(projectId, types, audience, provider);
+        const genRes: any = await apiClient.generateOutputs(projectId, types, audience, provider);
         const res = await apiClient.getProject(projectId);
         setProjectData(res.project);
+        if (genRes?.degradedCount > 0) {
+          setNotice(
+            describeAiStatus({
+              degraded: true,
+              rateLimited: genRes.rateLimited,
+              retryAfterSeconds: genRes.retryAfterSeconds,
+              degradedOutputCount: genRes.degradedCount,
+              provider: genRes.degraded?.[0]?.provider,
+              reason: genRes.degraded?.[0]?.reason,
+            })
+          );
+        }
         return res.project;
       } catch (err: any) {
         setError(err.message || 'Failed to generate outputs');
@@ -209,6 +265,8 @@ export function useProject() {
     isLoading,
     error,
     setError,
+    notice,
+    setNotice,
     loadDemo,
     loadProject,
     ingestDoc,

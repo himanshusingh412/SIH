@@ -4,6 +4,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { config } from '../../config';
 import { AIProviderManager } from '../../ai/providerManager';
 import { CandidateContentSpine, CandidateSkill, EducationItem, ProjectItem, WorkExperience } from './candidateSpine';
+import { callGemini } from '../../utils/geminiCall';
 
 export interface StructuredResumeJSON {
   personalInfo?: {
@@ -285,7 +286,7 @@ ${text.slice(0, 10000)}`;
     const modelName = config.aiModel || 'gemini-3.1-flash-lite';
     const model = genAI.getGenerativeModel({ model: modelName });
 
-    const result = await model.generateContent(prompt);
+    const result = await callGemini(() => model.generateContent(prompt), 'Resume text extraction');
     const resText = result.response.text();
     return this.parseJSONResponse(resText);
   }
@@ -309,7 +310,10 @@ ${text.slice(0, 10000)}`;
 
 Please analyze the attached document pages and extract all candidate information into strict JSON.`;
 
-    const result = await model.generateContent([prompt, inlinePart]);
+    const result = await callGemini(
+      () => model.generateContent([prompt, inlinePart]),
+      'Resume multimodal extraction'
+    );
     const resText = result.response.text();
     return this.parseJSONResponse(resText);
   }

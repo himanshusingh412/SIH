@@ -1,5 +1,6 @@
-import { getAIProvider } from '../ai/provider';
 import { AIProviderManager } from '../ai/providerManager';
+import { getAIProviderInstance } from '../ai/providers/factory';
+import { createDeadline, PIPELINE_BUDGET_MS } from '../utils/aiThrottle';
 import { DocumentProcessor } from '../processors/documentProcessor';
 import { ProjectRepository } from '../repositories/projectRepository';
 import { AudienceProfile, InputCategory, OutputType } from '../types';
@@ -82,12 +83,25 @@ Executive Summary: In Q3 2026, Smart India Hackathon introduced the AI Content T
     });
     console.log(`[INGESTION] Source document saved: ${doc.id}`);
 
-    // Build Content Spine via AI Provider Manager (Fallback Chain & Circuit Breaker)
+    // Build Content Spine via AI Provider Manager (Fallback Chain & Circuit Breaker).
+    // One shared deadline covers spine extraction + all 7 deliverables so the
+    // request always returns inside the serverless budget instead of dying.
+    const deadlineAt = createDeadline(PIPELINE_BUDGET_MS);
     console.log(`[GEMINI] Extraction started for document: ${doc.id}`);
-    const { spine: spineData, provider: usedProvider, model: usedModel } = await AIProviderManager.extractContentSpine(
+    const extraction = await AIProviderManager.extractContentSpine(
       processed.rawText,
-      category
+      category,
+      undefined,
+      { deadlineAt }
     );
+    const spineData = extraction.spine;
+    const usedProvider = extraction.provider;
+    const usedModel = extraction.model;
+    if (extraction.isFallback) {
+      console.warn(
+        `[GEMINI] Extraction degraded to '${usedProvider}' — ${extraction.degradedReason || 'primary provider unavailable'}`
+      );
+    }
     console.log(`[GEMINI] Extraction completed via provider '${usedProvider}' (${usedModel})`);
 
     // Auto-identify & lock critical facts using FactLockEngine
@@ -198,10 +212,31 @@ Executive Summary: In Q3 2026, Smart India Hackathon introduced the AI Content T
     ];
 
     console.log(`[OUTPUT] Generation started for 7 deliverable formats`);
-    await this.generateOutputs(projectId, defaultOutputTypes, 'EXECUTIVE');
+    let generation: Awaited<ReturnType<ProjectService['generateOutputs']>> | null = null;
+    try {
+      generation = await this.generateOutputs(projectId, defaultOutputTypes, 'EXECUTIVE', undefined, {
+        deadlineAt,
+      });
+    } catch (genErr: any) {
+      // The ingest itself succeeded (source + spine + fact locks are persisted).
+      // Surface the generation problem without discarding the user's upload.
+      console.error(`[OUTPUT] Generation error after ingest: ${genErr.message}`);
+    }
 
     const finalProject = await this.repo.findProjectById(projectId);
     console.log(`[REVIEW] Loading project for Review Workspace: ${projectId} (Outputs: ${finalProject?.outputs?.length || 0})`);
+
+    const degradedOutputs = generation?.degraded || [];
+    const aiStatus = {
+      provider: usedProvider,
+      model: usedModel,
+      spineFromFallback: extraction.isFallback,
+      degradedOutputCount: degradedOutputs.length,
+      degraded: extraction.isFallback || degradedOutputs.length > 0,
+      rateLimited: Boolean(extraction.rateLimited || generation?.rateLimited),
+      retryAfterSeconds: generation?.retryAfterSeconds || extraction.retryAfterSeconds,
+      reason: extraction.degradedReason || degradedOutputs[0]?.reason,
+    };
 
     return {
       documentId: doc.id,
@@ -213,6 +248,8 @@ Executive Summary: In Q3 2026, Smart India Hackathon introduced the AI Content T
       status: 'completed',
       project: finalProject,
       spine: spineData,
+      aiStatus,
+      degraded: aiStatus.degraded,
     };
   }
 
@@ -229,8 +266,13 @@ Executive Summary: In Q3 2026, Smart India Hackathon introduced the AI Content T
     const combinedText = docs.map((d) => d.rawText).join('\n\n');
     const category = (docs[0]?.inputCategory as InputCategory) || 'PROMPT';
 
-    const provider = getAIProvider();
-    const spineData = await provider.extractContentSpine(combinedText, category);
+    // Same fallback chain as ingestion — a re-process must never wipe out a
+    // project just because Gemini is throttled at that moment.
+    const deadlineAt = createDeadline(PIPELINE_BUDGET_MS);
+    const extraction = await AIProviderManager.extractContentSpine(combinedText, category, undefined, {
+      deadlineAt,
+    });
+    const spineData = extraction.spine;
 
     const classifiedFacts = this.factLockEngine.classifyAndLockFacts(combinedText, []);
 
@@ -264,14 +306,30 @@ Executive Summary: In Q3 2026, Smart India Hackathon introduced the AI Content T
       'INFOGRAPHIC',
       'VIDEO_PACKAGE',
     ];
+    let generation: Awaited<ReturnType<ProjectService['generateOutputs']>> | null = null;
     try {
-      await this.generateOutputs(projectId, defaultOutputTypes, 'EXECUTIVE');
+      generation = await this.generateOutputs(projectId, defaultOutputTypes, 'EXECUTIVE', undefined, {
+        deadlineAt,
+      });
     } catch (e: any) {
       console.warn(`[ProcessProjectSource] Output generation notice: ${e.message}`);
     }
 
     const updatedProject = await this.repo.findProjectById(projectId);
-    return { project: updatedProject, spine: spineData };
+    return {
+      project: updatedProject,
+      spine: spineData,
+      aiStatus: {
+        provider: extraction.provider,
+        model: extraction.model,
+        spineFromFallback: extraction.isFallback,
+        degradedOutputCount: generation?.degradedCount || 0,
+        degraded: extraction.isFallback || (generation?.degradedCount || 0) > 0,
+        rateLimited: Boolean(extraction.rateLimited || generation?.rateLimited),
+        retryAfterSeconds: generation?.retryAfterSeconds || extraction.retryAfterSeconds,
+        reason: extraction.degradedReason || generation?.degraded?.[0]?.reason,
+      },
+    };
   }
 
   async getContentSpine(projectId: string) {
@@ -284,16 +342,24 @@ Executive Summary: In Q3 2026, Smart India Hackathon introduced the AI Content T
     return this.repo.toggleFactLock(factId, isLocked);
   }
 
+  /**
+   * Generates every requested deliverable. A failure on one format never aborts
+   * the rest: each type falls back through the provider chain and, as a final
+   * safety net, the deterministic offline generator — so an upload always ends
+   * with a complete set of deliverables persisted against the project.
+   */
   async generateOutputs(
     projectId: string,
     outputTypes: OutputType[],
     audience: AudienceProfile,
-    providerName?: string
+    providerName?: string,
+    options?: { deadlineAt?: number }
   ) {
     const project = await this.repo.findProjectById(projectId);
     if (!project) throw new Error('Project not found');
 
     const job = await this.repo.createGenerationJob(projectId, outputTypes);
+    const deadlineAt = options?.deadlineAt ?? createDeadline(PIPELINE_BUDGET_MS);
 
     try {
       const latestSpine = project.contentSpines[0];
@@ -303,29 +369,88 @@ Executive Summary: In Q3 2026, Smart India Hackathon introduced the AI Content T
       const spineData = this.buildSpineData(latestSpine, facts, entities);
 
       const generatedResults = [];
+      const degraded: Array<{ outputType: OutputType; provider: string; reason?: string }> = [];
+      let rateLimited = false;
+      let retryAfterSeconds: number | undefined;
+      let lastError: any = null;
 
       for (const type of outputTypes) {
         console.log(`[OUTPUT] Generating deliverable ${type} via AIProviderManager...`);
-        const res = await AIProviderManager.generateOutput(spineData, type, audience, providerName);
+
+        let title: string;
+        let content: string;
+        let providerUsed: string;
+
+        try {
+          const res = await AIProviderManager.generateOutput(spineData, type, audience, providerName, {
+            deadlineAt,
+          });
+          title = res.title || `${type} Deliverable`;
+          content = res.content;
+          providerUsed = res.provider;
+
+          if (res.rateLimited) {
+            rateLimited = true;
+            retryAfterSeconds = Math.max(retryAfterSeconds || 0, res.retryAfterSeconds || 0) || undefined;
+          }
+          if (res.isFallback) {
+            degraded.push({ outputType: type, provider: res.provider, reason: res.degradedReason });
+          }
+        } catch (err: any) {
+          // Reached only when fallback is disabled or every provider threw.
+          lastError = err;
+          if (err?.status === 429 || err?.code === 'GEMINI_RATE_LIMITED') {
+            rateLimited = true;
+            retryAfterSeconds = Math.max(retryAfterSeconds || 0, err.retryAfterSeconds || 0) || undefined;
+          }
+          console.warn(`[OUTPUT] ${type} failed (${err.message}). Using deterministic offline generator.`);
+          const offline = await getAIProviderInstance('MOCK').generateOutput(spineData, type, audience);
+          title = offline.title || `${type} Deliverable`;
+          content = offline.content;
+          providerUsed = 'MOCK';
+          degraded.push({ outputType: type, provider: 'MOCK', reason: err.message });
+        }
 
         const saved = await this.repo.saveOutput({
           projectId,
           outputType: type,
           audienceProfileName: audience,
-          title: res.title || `${type} Deliverable`,
-          content: res.content,
+          title,
+          content,
         });
         generatedResults.push(saved);
-        console.log(`[OUTPUT] Saved deliverable ${type} to Neon PostgreSQL (ID: ${saved.id}, Provider: ${res.provider})`);
+        console.log(
+          `[OUTPUT] Saved deliverable ${type} to Neon PostgreSQL (ID: ${saved.id}, Provider: ${providerUsed})`
+        );
       }
 
       const valResult = await this.validateProjectOutputs(projectId);
-      await this.repo.updateGenerationJob(job.id, 'COMPLETED');
+      const jobStatus = degraded.length === 0 ? 'COMPLETED' : 'PARTIAL';
+      await this.repo.updateGenerationJob(
+        job.id,
+        jobStatus,
+        degraded.length > 0
+          ? `${degraded.length}/${outputTypes.length} deliverable(s) served by a fallback provider. ${
+              degraded[0]?.reason || ''
+            }`.trim()
+          : undefined
+      );
+
+      if (degraded.length > 0) {
+        console.warn(
+          `[OUTPUT] ${degraded.length}/${outputTypes.length} deliverables came from a fallback provider.`
+        );
+      }
 
       return {
         outputs: generatedResults,
         validationResult: valResult,
         jobId: job.id,
+        degraded,
+        degradedCount: degraded.length,
+        rateLimited,
+        retryAfterSeconds,
+        lastError: lastError ? String(lastError.message || lastError) : undefined,
       };
     } catch (err: any) {
       await this.repo.updateGenerationJob(job.id, 'FAILED', err.message);

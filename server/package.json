@@ -10,7 +10,10 @@
     "test": "tsx src/tests/test_suite.ts",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
-    "prisma:seed": "tsx prisma/seed.ts"
+    "prisma:seed": "tsx prisma/seed.ts",
+    "test:resilience": "tsx src/tests/ai_resilience_test_suite.ts",
+    "test:fallback": "tsx src/tests/provider_fallback_test.ts",
+    "test:ratelimit": "tsx src/tests/gemini_rate_limit_test_suite.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.0",

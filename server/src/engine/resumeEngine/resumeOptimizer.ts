@@ -2,6 +2,7 @@ import { CandidateContentSpine, WorkExperience } from './candidateSpine';
 import { JobContentSpine } from './jobSpine';
 import { resumeFactLockEngine } from './resumeFactLock';
 import { config } from '../../config';
+import { callGemini } from '../../utils/geminiCall';
 
 export interface BulletOptimizationResult {
   originalBullet: string;
@@ -153,7 +154,7 @@ Respond STRICTLY in JSON format with this structure:
   "recommendations": ["string"]
 }`;
 
-      const res = await model.generateContent(prompt);
+      const res = await callGemini(() => model.generateContent(prompt), 'ATS resume optimization');
       const resText = res.response.text();
       const parsed = JSON.parse(resText);
 
@@ -257,7 +258,7 @@ Required Skills: ${job.requiredSkills.join(', ')}
 
 Return ONLY the raw cover letter text cleanly formatted with line breaks. No markdown meta headers.`;
 
-      const res = await model.generateContent(prompt);
+      const res = await callGemini(() => model.generateContent(prompt), 'Cover letter generation');
       return res.response.text().trim() || this.generateCoverLetter(candidate, job);
     } catch {
       return this.generateCoverLetter(candidate, job);
@@ -331,7 +332,7 @@ JSON Response Structure:
   "skills": ["string"]
 }`;
 
-      const res = await model.generateContent(prompt);
+      const res = await callGemini(() => model.generateContent(prompt), 'LinkedIn profile generation');
       const parsed = JSON.parse(res.response.text());
       return parsed || this.generateLinkedInProfile(candidate);
     } catch {

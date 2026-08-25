@@ -187,7 +187,7 @@ export const ResumeStudio: React.FC<{ projectId?: string }> = ({ projectId = '' 
       setUploadStep('SELECT');
       setUploadError(err.message || "Resume analysis temporarily failed. Please retry.");
     }
-  };};
+  };
 
   const handleConfirmImport = () => {
     if (!importData) return;

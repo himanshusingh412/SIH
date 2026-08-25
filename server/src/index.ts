@@ -3,6 +3,7 @@ import express, { Request, Response } from 'express';
 import path from 'path';
 import { config } from './config';
 import { ensureDbSchema } from './config/dbInit';
+import { AIProviderManager } from './ai/providerManager';
 import { errorHandler, requestLogger } from './middleware/errorHandler';
 import { rateLimiter, securityHeaders } from './middleware/security';
 import agentRoutes from './routes/agentRoutes';
@@ -100,11 +101,16 @@ const dbDiagnosticsHandler = async (_req: Request, res: Response) => {
 
 // AI Provider Health Endpoint Handler
 const aiHealthHandler = (_req: Request, res: Response) => {
+  const circuit = AIProviderManager.getStatus();
   return res.json({
     success: true,
     provider: config.aiProvider || 'gemini',
     model: config.aiModel || 'gemini-3.1-flash-lite',
     demoMode: config.demoMode,
+    activeProvider: circuit.activeProvider,
+    fallbackEnabled: circuit.fallbackEnabled,
+    fallbackChain: circuit.chain,
+    gemini: circuit.gemini,
   });
 };
 

@@ -387,7 +387,11 @@ export class ProjectRepository {
     });
   }
 
-  async updateGenerationJob(jobId: string, status: 'COMPLETED' | 'FAILED', errorMessage?: string) {
+  async updateGenerationJob(
+    jobId: string,
+    status: 'COMPLETED' | 'PARTIAL' | 'FAILED',
+    errorMessage?: string
+  ) {
     return prisma.generationJob.update({
       where: { id: jobId },
       data: {

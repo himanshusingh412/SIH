@@ -21,9 +21,11 @@ export const getProvidersInfo = async (_req: Request, res: Response): Promise<vo
   try {
     const geminiHealth = providerHealthTracker.getHealth('gemini');
     const openAIHealth = providerHealthTracker.getHealth('openai');
-    const mockHealth = providerHealthTracker.getHealth('mock');
+    const bedrockHealth = providerHealthTracker.getHealth('bedrock');
+    const circuit = AIProviderManager.getStatus();
 
     sendSuccess(res, {
+      circuit,
       providers: {
         gemini: {
           id: 'gemini',
@@ -45,16 +47,29 @@ export const getProvidersInfo = async (_req: Request, res: Response): Promise<vo
           retryAfterSeconds: openAIHealth.retryAfterSeconds,
           remainingRetrySeconds: openAIHealth.remainingRetrySeconds,
         },
+        bedrock: {
+          id: 'bedrock',
+          name: 'AWS Bedrock',
+          model: config.bedrockModel,
+          configured: bedrockHealth.configured,
+          status: bedrockHealth.status,
+          message: bedrockHealth.message,
+          retryAfterSeconds: bedrockHealth.retryAfterSeconds,
+          remainingRetrySeconds: bedrockHealth.remainingRetrySeconds,
+        },
         mock: {
           id: 'mock',
-          name: 'Mock AI',
-          model: 'Demo / Testing Only',
+          name: 'Offline Deterministic Engine',
+          model: 'Fallback / Offline',
           configured: true,
           status: 'connected',
-          message: 'Mock AI — Demo / Testing Only',
+          message: 'Offline deterministic engine — always available as final fallback',
         },
       },
       defaultProvider: config.aiProvider || 'gemini',
+      activeProvider: circuit.activeProvider,
+      fallbackEnabled: circuit.fallbackEnabled,
+      fallbackChain: circuit.chain,
     });
   } catch (err: any) {
     sendError(res, err.message || 'Failed to retrieve AI providers info', 500, 'PROVIDERS_INFO_FAILED');
@@ -220,15 +235,24 @@ export const generateAIOutput = async (req: Request, res: Response): Promise<voi
       lockedFacts,
     });
 
+    // Report what actually served the request, not what was asked for.
+    const servedProvider = (generated.provider || normProvider).toLowerCase();
     const modelName =
-      normProvider === 'gemini'
+      servedProvider === 'gemini'
         ? config.aiModel || 'gemini-3.1-flash-lite'
-        : normProvider === 'openai'
+        : servedProvider === 'openai'
         ? config.openaiModel || 'gpt-4o'
-        : 'Demo / Testing Only';
+        : servedProvider === 'bedrock'
+        ? config.bedrockModel
+        : 'Offline Deterministic Engine';
 
     sendSuccess(res, {
-      provider: normProvider,
+      provider: servedProvider,
+      requestedProvider: normProvider,
+      isFallback: generated.isFallback,
+      degradedReason: generated.degradedReason,
+      rateLimited: generated.rateLimited,
+      retryAfterSeconds: generated.retryAfterSeconds,
       model: modelName,
       title: generated.title,
       content: generated.content,
@@ -253,5 +277,19 @@ export const generateAIOutput = async (req: Request, res: Response): Promise<voi
       return;
     }
     sendError(res, err.message || 'AI deliverable generation failed', 500, 'AI_GENERATION_FAILED');
+  }
+};
+
+
+/**
+ * POST /api/ai/providers/reset
+ * Clears a stale Gemini cooldown so a recovered key is retried immediately.
+ */
+export const resetProviderCircuit = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    AIProviderManager.resetGeminiCircuit();
+    sendSuccess(res, { reset: true, circuit: AIProviderManager.getStatus() });
+  } catch (err: any) {
+    sendError(res, err.message || 'Failed to reset provider circuit', 500, 'PROVIDER_RESET_FAILED');
   }
 };

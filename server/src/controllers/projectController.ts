@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { ProjectService } from '../services/projectService';
-import { sendError, sendSuccess } from '../utils/response';
+import { sendAIError, sendError, sendSuccess } from '../utils/response';
 import { AudienceProfile, InputCategory, OutputType } from '../types';
 import { formatEngine } from '../engine/formatEngine';
 
@@ -102,6 +102,9 @@ export async function ingestDocument(req: Request, res: Response) {
 
     return sendSuccess(res, result, 201);
   } catch (err: any) {
+    if (err?.status === 429 || err?.code === 'GEMINI_RATE_LIMITED' || err?.code === 'AI_UNAVAILABLE') {
+      return sendAIError(res, err, 'Failed to ingest source document');
+    }
     return sendError(res, err.message || 'Failed to ingest source document', 500);
   }
 }
@@ -118,6 +121,9 @@ export async function processProjectSource(req: Request, res: Response) {
     const result = await service.processProjectSource(projectId);
     return sendSuccess(res, result);
   } catch (err: any) {
+    if (err?.status === 429 || err?.code === 'GEMINI_RATE_LIMITED') {
+      return sendAIError(res, err, 'Failed to process project source');
+    }
     const status = err.message.includes('not found') ? 404 : 500;
     return sendError(res, err.message || 'Failed to process project source', status);
   }
@@ -184,6 +190,9 @@ export async function generateOutputs(req: Request, res: Response) {
     const result = await service.generateOutputs(projectId, types, audienceProfile, provider);
     return sendSuccess(res, result);
   } catch (err: any) {
+    if (err?.status === 429 || err?.code === 'GEMINI_RATE_LIMITED') {
+      return sendAIError(res, err, 'Failed to generate outputs');
+    }
     const status = err.message.includes('not found') ? 404 : 500;
     return sendError(res, err.message || 'Failed to generate outputs', status);
   }
@@ -254,6 +263,9 @@ export async function regenerateSingleOutput(req: Request, res: Response) {
     const output = await service.regenerateSingleOutput(outputId, audienceProfile);
     return sendSuccess(res, { output });
   } catch (err: any) {
+    if (err?.status === 429 || err?.code === 'GEMINI_RATE_LIMITED') {
+      return sendAIError(res, err, 'Failed to regenerate output');
+    }
     const status = err.message.includes('not found') ? 404 : 500;
     return sendError(res, err.message || 'Failed to regenerate output', status);
   }

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { config } from '../config';
 import { parseGeminiError } from '../utils/geminiErrorHandler';
+import { callGemini } from '../utils/geminiCall';
 
 // ============================================================
 // CONTENTSPINE AI PROTOTYPE CONTEXT
@@ -254,7 +255,7 @@ export const prototypeAgentHandler = async (req: Request, res: Response): Promis
     });
 
     const chat = model.startChat({ history: priorTurns });
-    const result = await chat.sendMessage(message.trim());
+    const result = await callGemini(() => chat.sendMessage(message.trim()), 'Prototype assistant');
     const answer = result.response.text();
 
     if (!answer) {
@@ -279,12 +280,23 @@ export const prototypeAgentHandler = async (req: Request, res: Response): Promis
     const rateInfo = parseGeminiError(err);
 
     if (rateInfo.isRateLimited) {
-      res.status(429).json({
-        success: false,
-        error: {
-          code: 'GEMINI_RATE_LIMITED',
-          message: rateInfo.message,
+      // Never dead-end the assistant on a quota blip: answer from the built-in
+      // prototype knowledge base and tell the user Gemini is cooling down.
+      console.warn(`[PrototypeAgent] Rate limited — serving offline prototype knowledge.`);
+      res.json({
+        success: true,
+        data: {
+          answer: `> _Gemini is rate-limited right now (retry in ~${rateInfo.retryAfterSeconds}s). Answering from the built-in prototype knowledge base._\n\n${generateFallbackAnswer(
+            String(req.body?.message || '').trim()
+          )}`,
+          provider: 'offline',
+          model: PROTO_MODEL,
+          grounded: true,
+          configured: true,
+          degraded: true,
+          rateLimited: true,
           retryAfterSeconds: rateInfo.retryAfterSeconds,
+          note: 'Gemini rate limit reached — served from offline prototype knowledge.',
         },
       });
       return;

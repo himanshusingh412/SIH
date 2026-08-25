@@ -1,14 +1,24 @@
 import React from 'react';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, AlertTriangle } from 'lucide-react';
 
 interface RootLayoutProps {
   children: React.ReactNode;
   error?: string | null;
   onClearError?: () => void;
+  /** Non-blocking degraded-mode message (fallback provider / rate limit). */
+  notice?: string | null;
+  onClearNotice?: () => void;
   isLoading?: boolean;
 }
 
-export const RootLayout: React.FC<RootLayoutProps> = ({ children, error, onClearError, isLoading }) => {
+export const RootLayout: React.FC<RootLayoutProps> = ({
+  children,
+  error,
+  onClearError,
+  notice,
+  onClearNotice,
+  isLoading,
+}) => {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* Level-1 Heading for Document Outline (WCAG Issue 2) */}
@@ -39,6 +49,39 @@ export const RootLayout: React.FC<RootLayoutProps> = ({ children, error, onClear
               onClick={onClearError}
               aria-label="Dismiss error notification"
               style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontWeight: 700 }}
+            >
+              Dismiss ✕
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Degraded-Mode Notice (work succeeded, a fallback provider was used) */}
+      {!error && notice && (
+        <div
+          role="status"
+          style={{
+            background: 'rgba(245, 158, 11, 0.18)',
+            borderBottom: '1px solid #f59e0b',
+            padding: '12px 24px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            color: '#92400e',
+            fontSize: '0.9rem',
+            fontWeight: 600,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <AlertTriangle size={18} aria-hidden="true" />
+            <span>{notice}</span>
+          </div>
+          {onClearNotice && (
+            <button
+              onClick={onClearNotice}
+              aria-label="Dismiss degraded mode notice"
+              style={{ background: 'none', border: 'none', color: '#92400e', cursor: 'pointer', fontWeight: 700 }}
             >
               Dismiss ✕
             </button>
