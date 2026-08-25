@@ -36,6 +36,7 @@ export function removeNullBytes<T>(obj: T): T {
     return obj.map(removeNullBytes) as unknown as T;
   }
   if (obj !== null && typeof obj === 'object') {
+    if (obj instanceof Date) return obj;
     const res: Record<string, any> = {};
     for (const key of Object.keys(obj)) {
       res[key] = removeNullBytes((obj as Record<string, any>)[key]);
