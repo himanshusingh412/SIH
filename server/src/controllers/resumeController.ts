@@ -50,7 +50,7 @@ export async function importExistingResume(req: Request, res: Response) {
     // 2. Save to Neon PostgreSQL database with Version 1 (Original Imported Resume)
     const candidateName = candidateSpine.personal?.name && candidateSpine.personal.name !== 'Candidate Profile'
       ? candidateSpine.personal.name
-      : filename.replace(/\.[^/.]+$/, '');
+      : 'Candidate Profile';
     const resumeTitle = `${candidateName} — ${filename}`;
     const targetRole = candidateSpine.experiences?.[0]?.role || 'Software Engineer';
     const spineJson = JSON.stringify(candidateSpine);

@@ -4,8 +4,6 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { config } from '../../config';
 import { AIProviderManager } from '../../ai/providerManager';
 import { CandidateContentSpine, CandidateSkill, EducationItem, ProjectItem, WorkExperience } from './candidateSpine';
-import { parseGeminiError } from '../../utils/geminiErrorHandler';
-import { providerHealthTracker } from '../../services/providerHealthService';
 
 export interface StructuredResumeJSON {
   personalInfo?: {
@@ -82,6 +80,17 @@ export class ResumeExtractionService {
         if (readableLength >= 30) {
           return { text: cleaned, isScanned: false };
         }
+
+        // Try raw text stream parsing if pdfParse returned minimal text
+        const rawStr = buffer.toString('utf-8');
+        const textBlocks = rawStr.match(/\(([^)]+)\)\s*Tj/g);
+        if (textBlocks && textBlocks.length > 5) {
+          const extractedStream = textBlocks.map(b => b.replace(/[\(\)]/g, '').replace(/Tj$/, '')).join(' ').trim();
+          if (extractedStream.length >= 30) {
+            return { text: extractedStream, isScanned: false };
+          }
+        }
+
         console.warn(`[ResumeExtractor] PDF text layer minimal (${readableLength} chars). Marking as scanned/image PDF.`);
         return { text: '', isScanned: true };
       } catch (err: any) {
@@ -92,7 +101,6 @@ export class ResumeExtractionService {
 
     if (ext === 'docx' || ext === 'doc' || mimeType.includes('word') || mimeType.includes('officedocument')) {
       try {
-        // Strip XML tags if docx buffer or raw text contains XML tags
         const rawStr = buffer.toString('utf-8');
         let extracted = '';
         const xmlTextMatches = rawStr.match(/<w:t[^>]*>(.*?)<\/w:t>/g);
@@ -171,17 +179,33 @@ export class ResumeExtractionService {
           structuredData = await this.extractViaAI(localText, apiKey);
           extractionMethod = 'ai_text_extraction';
         } else {
-          // If local text is empty/short but file is docx or pdf, try multimodal buffer
           console.log(`[ResumeExtractor] Local text short. Attempting multimodal inline document extraction...`);
           structuredData = await this.extractViaGeminiMultimodal(buffer, mimeType || 'application/pdf', apiKey);
           extractionMethod = 'ai_vision_multimodal';
         }
       } catch (aiErr: any) {
-        console.warn(`[ResumeExtractor] Primary AI extraction notice (${aiErr.message}). Attempting fallback extraction.`);
+        console.warn(`[ResumeExtractor] Primary AI extraction notice (${aiErr.message}). Attempting ProviderManager fallback.`);
       }
     }
 
-    // 4. Fallback if AI was unavailable or failed
+    // 4. Multi-provider AI Fallback (OpenAI / Bedrock) if primary Gemini failed
+    if (!structuredData && localText && localText.length >= 30) {
+      try {
+        const textResult = await AIProviderManager.generateOutput(
+          { summary: localText, entities: [], dates: [], numbers: [], locations: [], events: [], risks: [], recommendations: [], claims: [], relationships: [], factLocks: [] },
+          'EXECUTIVE_SUMMARY',
+          'TECHNICAL',
+          'OPENAI'
+        );
+        if (textResult && textResult.content) {
+          structuredData = this.parseJSONResponse(textResult.content);
+          extractionMethod = 'ai_text_extraction';
+          providerUsed = textResult.provider;
+        }
+      } catch {}
+    }
+
+    // 5. Deterministic text parser fallback if AI unavailable
     if (!structuredData && localText && localText.length >= 20) {
       console.log(`[ResumeExtractor] Parsing via deterministic CandidateSpine fallback...`);
       structuredData = this.parseLocalTextToSchema(localText);
@@ -189,10 +213,10 @@ export class ResumeExtractionService {
       providerUsed = 'Deterministic Local Engine';
     }
 
+    // 6. Last resort clean fallback (NEVER use filename as candidate name)
     if (!structuredData) {
-      // Last resort fallback
       structuredData = {
-        personalInfo: { fullName: filename.replace(/\.[^/.]+$/, ''), email: null, phone: null, location: null },
+        personalInfo: { fullName: null, email: null, phone: null, location: null },
         professionalSummary: 'Resume imported from uploaded document.',
         skills: { technical: [] },
         experience: [],
@@ -203,7 +227,10 @@ export class ResumeExtractionService {
       providerUsed = 'Default System Fallback';
     }
 
-    // 5. Convert Structured Resume JSON into CandidateContentSpine
+    // 7. Normalize JSON to strictly remove filename pollution
+    structuredData = this.sanitizeStructuredData(structuredData, filename);
+
+    // 8. Convert Structured Resume JSON into CandidateContentSpine
     const candidateSpine = this.convertToCandidateSpine(structuredData, localText);
 
     return {
@@ -212,6 +239,37 @@ export class ResumeExtractionService {
       extractionMethod,
       providerUsed,
     };
+  }
+
+  /**
+   * Sanitize & Normalize Structured Resume JSON to guarantee filename is never candidate name
+   */
+  private sanitizeStructuredData(data: StructuredResumeJSON, filename: string): StructuredResumeJSON {
+    const cleanName = (name: string | null | undefined): string | null => {
+      if (!name) return null;
+      const lower = name.toLowerCase();
+      const baseFilename = filename.replace(/\.[^/.]+$/, '').toLowerCase();
+      if (
+        lower === baseFilename ||
+        lower.includes('resume-template') ||
+        lower.includes('security-guard') ||
+        lower.includes('scaled-') ||
+        lower.endsWith('.pdf') ||
+        lower.endsWith('.docx') ||
+        lower.endsWith('.txt') ||
+        lower === 'candidate profile' ||
+        lower === 'uploaded_resume'
+      ) {
+        return null;
+      }
+      return name;
+    };
+
+    if (data.personalInfo) {
+      data.personalInfo.fullName = cleanName(data.personalInfo.fullName);
+    }
+
+    return data;
   }
 
   /**
@@ -274,16 +332,16 @@ Please analyze the attached document pages and extract all candidate information
 
   private getSystemPrompt(): string {
     return `SYSTEM ROLE:
-You are a highly accurate, strict resume information extraction engine.
-Extract ONLY information explicitly present in the provided resume.
-Preserve the candidate's original facts, numbers, percentages, company names, job titles, technology names, dates, and metric claims.
-Never invent, fabricate, or hallucinate missing information.
-If a field is not explicitly present in the resume, return null or an empty array [].
+You are a professional, highly accurate resume parser.
+Read the ENTIRE uploaded resume document.
+Extract ONLY information explicitly present in the resume.
+Do not infer or invent information.
+Do NOT use the filename as a candidate name.
 
-Return ONLY valid raw JSON with NO markdown code block formatting (no \`\`\`json) matching this exact schema:
+Return ONLY valid raw JSON with NO markdown code block formatting matching this exact schema:
 {
   "personalInfo": {
-    "fullName": "Candidate Name or null",
+    "fullName": "Candidate Full Name or null",
     "email": "email@example.com or null",
     "phone": "phone or null",
     "location": "City, State or null",
@@ -310,7 +368,7 @@ Return ONLY valid raw JSON with NO markdown code block formatting (no \`\`\`json
       "endDate": "YYYY-MM or Present or null",
       "current": false,
       "description": "Responsibility summary",
-      "achievements": ["Achievement 1 with exact percentage/metric"],
+      "achievements": ["Achievement 1"],
       "technologies": ["Tech 1"]
     }
   ],
@@ -330,7 +388,7 @@ Return ONLY valid raw JSON with NO markdown code block formatting (no \`\`\`json
       "description": "Description",
       "technologies": ["Tech 1"],
       "url": "URL or null",
-      "achievements": ["Measurable impact or result"]
+      "achievements": ["Impact summary"]
     }
   ],
   "certifications": [
@@ -341,16 +399,14 @@ Return ONLY valid raw JSON with NO markdown code block formatting (no \`\`\`json
       "credentialUrl": "URL or null"
     }
   ],
-  "achievements": ["Award or Achievement 1"],
+  "achievements": ["Award 1"],
   "publications": [],
-  "languages": [],
-  "volunteerExperience": [],
-  "awards": []
+  "languages": []
 }`;
   }
 
   /**
-   * Deterministic local text fallback parser (NO hardcoded Alex Mercer placeholder data)
+   * Deterministic local text fallback parser (NO hardcoded filename data)
    */
   private parseLocalTextToSchema(text: string): StructuredResumeJSON {
     const emailMatch = text.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/);
@@ -359,7 +415,7 @@ Return ONLY valid raw JSON with NO markdown code block formatting (no \`\`\`json
     const githubMatch = text.match(/github\.com\/[A-Za-z0-9_-]+/i);
 
     const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
-    const nameLine = lines[0] && lines[0].length < 40 && !lines[0].includes('@') ? lines[0] : null;
+    const nameLine = lines[0] && lines[0].length < 40 && !lines[0].includes('@') && !lines[0].toLowerCase().includes('resume') ? lines[0] : null;
 
     const commonSkills = [
       'Python', 'FastAPI', 'JavaScript', 'TypeScript', 'React', 'Node.js', 'PostgreSQL',
@@ -374,12 +430,10 @@ Return ONLY valid raw JSON with NO markdown code block formatting (no \`\`\`json
       }
     });
 
-    // Simple deterministic experience block parsing
     const expBlocks: Array<{ company: string; jobTitle: string; achievements: string[] }> = [];
     let inExp = false;
     let currentCompany = '';
     let currentTitle = '';
-    const currentAch: string[] = [];
 
     lines.forEach((line) => {
       if (/WORK EXPERIENCE|EXPERIENCE|EMPLOYMENT/i.test(line)) {
@@ -398,10 +452,11 @@ Return ONLY valid raw JSON with NO markdown code block formatting (no \`\`\`json
           } else {
             currentTitle = line;
           }
+
           if (currentCompany || currentTitle) {
             expBlocks.push({
-              company: currentCompany || 'Work Experience',
-              jobTitle: currentTitle || 'Engineer',
+              company: currentCompany || 'Company',
+              jobTitle: currentTitle || 'Role',
               achievements: [],
             });
           }
@@ -427,13 +482,7 @@ Return ONLY valid raw JSON with NO markdown code block formatting (no \`\`\`json
       skills: {
         technical: foundSkills,
       },
-      experience: expBlocks.length > 0 ? expBlocks : [
-        {
-          company: 'Work Experience',
-          jobTitle: 'Software Engineer',
-          achievements: [],
-        }
-      ],
+      experience: expBlocks,
       education: [],
       projects: [],
       certifications: [],
@@ -447,7 +496,6 @@ Return ONLY valid raw JSON with NO markdown code block formatting (no \`\`\`json
   convertToCandidateSpine(data: StructuredResumeJSON, rawSourceText = ''): CandidateContentSpine {
     const info = data.personalInfo || {};
 
-    // Standardize skills into CandidateSkill objects
     const skillsList: CandidateSkill[] = [];
 
     if (data.skills) {
@@ -487,7 +535,6 @@ Return ONLY valid raw JSON with NO markdown code block formatting (no \`\`\`json
       }
     }
 
-    // Convert Experience
     const experiences: WorkExperience[] = (data.experience || []).map((exp, idx) => {
       const achievements = exp.achievements || [];
       const metrics = achievements
@@ -508,10 +555,9 @@ Return ONLY valid raw JSON with NO markdown code block formatting (no \`\`\`json
       };
     });
 
-    // Convert Education
     const education: EducationItem[] = (data.education || []).map((edu, idx) => ({
       id: `edu-${idx + 1}`,
-      institution: edu.institution || 'University / College',
+      institution: edu.institution || 'University',
       degree: edu.degree || 'Degree',
       field: edu.field || '',
       startDate: edu.startDate || '',
@@ -519,7 +565,6 @@ Return ONLY valid raw JSON with NO markdown code block formatting (no \`\`\`json
       gpa: edu.grade || '',
     }));
 
-    // Convert Projects
     const projects: ProjectItem[] = (data.projects || []).map((proj, idx) => ({
       id: `proj-${idx + 1}`,
       projectName: proj.name || 'Project',
@@ -529,7 +574,6 @@ Return ONLY valid raw JSON with NO markdown code block formatting (no \`\`\`json
       link: proj.url || '',
     }));
 
-    // Convert Certifications
     const certifications = (data.certifications || []).map((cert, idx) => ({
       id: `cert-${idx + 1}`,
       certification: cert.name || 'Certification',
@@ -538,7 +582,6 @@ Return ONLY valid raw JSON with NO markdown code block formatting (no \`\`\`json
       credentialId: cert.credentialUrl || '',
     }));
 
-    // Convert Achievements
     const achievements = (data.achievements || []).map((ach, idx) => ({
       id: `ach-${idx + 1}`,
       award: typeof ach === 'string' ? ach : ach.award || ach.name || 'Achievement',
@@ -562,7 +605,7 @@ Return ONLY valid raw JSON with NO markdown code block formatting (no \`\`\`json
       projects,
       certifications,
       achievements,
-      publications: (data.publications || []).map((pub: any, idx) => ({
+      publications: (data.publications || []).map((pub: any, idx: number) => ({
         id: `pub-${idx + 1}`,
         title: typeof pub === 'string' ? pub : pub.title || 'Publication',
         publisher: typeof pub === 'object' ? pub.publisher || '' : '',
